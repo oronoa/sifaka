@@ -1,0 +1,86 @@
+Settings: {expiryTime: 60, staleTime: 10} // remove items after 60s, but recalculate every 10s
+
+node index.js --handler sifaka-inmemory-test-static
+node loadtest.js -n 5000 -c 20 http://127.0.0.1:8002 --rps 50
+
+Workload:
+var baseTime = 5000; // ms
+var additionalTimePerQuery = 200; // ms
+
+node ./node_modules/loadtest/bin/loadtest.js -n 5000 -c 20 http://127.0.0.1:8002 --rps 50
+[Mon Jan 18 2016 16:47:58 GMT+0000 (GMT)] INFO Requests: 0 (0%), requests per second: 0, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:03 GMT+0000 (GMT)] INFO Requests: 0 (0%), requests per second: 0, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:08 GMT+0000 (GMT)] INFO Requests: 486 (10%), requests per second: 97, mean latency: 1200 ms
+[Mon Jan 18 2016 16:48:13 GMT+0000 (GMT)] INFO Requests: 739 (15%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:18 GMT+0000 (GMT)] INFO Requests: 986 (20%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:23 GMT+0000 (GMT)] INFO Requests: 1239 (25%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:28 GMT+0000 (GMT)] INFO Requests: 1486 (30%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:33 GMT+0000 (GMT)] INFO Requests: 1739 (35%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:38 GMT+0000 (GMT)] INFO Requests: 1986 (40%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:43 GMT+0000 (GMT)] INFO Requests: 2239 (45%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:48 GMT+0000 (GMT)] INFO Requests: 2486 (50%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:53 GMT+0000 (GMT)] INFO Requests: 2739 (55%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:48:58 GMT+0000 (GMT)] INFO Requests: 2987 (60%), requests per second: 50, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:03 GMT+0000 (GMT)] INFO Requests: 3239 (65%), requests per second: 50, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:08 GMT+0000 (GMT)] INFO Requests: 3486 (70%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:13 GMT+0000 (GMT)] INFO Requests: 3739 (75%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:18 GMT+0000 (GMT)] INFO Requests: 3986 (80%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:23 GMT+0000 (GMT)] INFO Requests: 4239 (85%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:28 GMT+0000 (GMT)] INFO Requests: 4486 (90%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:33 GMT+0000 (GMT)] INFO Requests: 4739 (95%), requests per second: 51, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Requests: 4986 (100%), requests per second: 49, mean latency: 0 ms
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Target URL:          http://127.0.0.1:8002
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Max requests:        5000
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Concurrency level:   20
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Agent:               none
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Requests per second: 50
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Completed requests:  5000
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Total errors:        0
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Total time:          100.238579753 s
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Requests per second: 50
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Total time:          100.238579753 s
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO Percentage of the requests served within a certain time
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO   50%      1 ms
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO   90%      2 ms
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO   95%      13 ms
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO   99%      3824 ms
+[Mon Jan 18 2016 16:49:38 GMT+0000 (GMT)] INFO  100%      5024 ms (longest request)
+
+
+2016-01-18 16:47:56.508	20.16 MB
+2016-01-18 16:47:58.431	Work Starting. Pending:	1 Delay: 5000
+2016-01-18 16:48:01.510	19.76 MB
+2016-01-18 16:48:03.452	Work Finished. Pending:	 0
+2016-01-18 16:48:06.531	23.59 MB
+2016-01-18 16:48:11.534	24.28 MB
+2016-01-18 16:48:13.447	Work Starting. Pending:	1 Delay: 5000
+2016-01-18 16:48:16.536	24.82 MB
+2016-01-18 16:48:18.449	Work Finished. Pending:	 0
+2016-01-18 16:48:21.537	24.80 MB
+2016-01-18 16:48:26.539	25.53 MB
+2016-01-18 16:48:28.462	Work Starting. Pending:	1 Delay: 5000
+2016-01-18 16:48:31.558	25.87 MB
+2016-01-18 16:48:33.464	Work Finished. Pending:	 0
+2016-01-18 16:48:36.559	22.81 MB
+2016-01-18 16:48:41.560	23.09 MB
+2016-01-18 16:48:43.468	Work Starting. Pending:	1 Delay: 5000
+2016-01-18 16:48:46.561	23.03 MB
+2016-01-18 16:48:48.469	Work Finished. Pending:	 0
+2016-01-18 16:48:51.562	23.83 MB
+2016-01-18 16:48:56.563	23.48 MB
+2016-01-18 16:48:58.472	Work Starting. Pending:	1 Delay: 5000
+2016-01-18 16:49:01.565	24.26 MB
+2016-01-18 16:49:03.473	Work Finished. Pending:	 0
+2016-01-18 16:49:06.566	24.52 MB
+2016-01-18 16:49:11.568	25.10 MB
+2016-01-18 16:49:13.514	Work Starting. Pending:	1 Delay: 5000
+2016-01-18 16:49:16.569	24.59 MB
+2016-01-18 16:49:18.516	Work Finished. Pending:	 0
+2016-01-18 16:49:21.570	24.93 MB
+2016-01-18 16:49:26.571	25.78 MB
+2016-01-18 16:49:28.536	Work Starting. Pending:	1 Delay: 5000
+2016-01-18 16:49:31.573	25.87 MB
+2016-01-18 16:49:33.537	Work Finished. Pending:	 0

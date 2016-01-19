@@ -1,0 +1,35 @@
+Settings: None
+node loadtest.js -n 5000 -c 20 http://127.0.0.1:8002 --rps 50
+
+Workload:
+var baseTime = 5000; // ms
+var additionalTimePerQuery = 200; // ms
+
+
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Target URL:          http://127.0.0.1:8002
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Max requests:        5000
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Concurrency level:   20
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Agent:               none
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Requests per second: 50
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Completed requests:  5000
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Total errors:        4392
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Total time:          181.819732023 s
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Requests per second: 27
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Total time:          181.819732023 s
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO Percentage of the requests served within a certain time
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO   50%      114201 ms
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO   90%      120010 ms
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO   95%      120014 ms
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO   99%      120028 ms
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO  100%      120075 ms (longest request)
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO  100%      120075 ms (longest request)
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO
+[Wed Jan 13 2016 15:47:48 GMT+0000 (GMT)] INFO    -1:   4392 errors
+
+
+Analysis:
+- Given the concurrency penalty on the workload, the requests built up very quickly - resulting in very large delays tonr the lat on workloads.
+- A a large number of the requests timed out / errored. At 100% in the load test, a large number of the workloads were still completing

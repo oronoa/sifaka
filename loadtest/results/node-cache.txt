@@ -1,0 +1,68 @@
+Settings: {stdTTL: 10, checkPeriod: 2}
+node loadtest.js -n 5000 -c 20 http://127.0.0.1:8002 --rps 50
+
+Workload:
+var baseTime = 5000; // ms
+var additionalTimePerQuery = 200; // ms
+
+
+[Wed Jan 13 2016 15:36:42 GMT+0000 (GMT)] INFO Requests: 0 (0%), requests per second: 0, mean latency: 0 ms
+[Wed Jan 13 2016 15:36:47 GMT+0000 (GMT)] INFO Requests: 0 (0%), requests per second: 0, mean latency: 0 ms
+[Wed Jan 13 2016 15:36:52 GMT+0000 (GMT)] INFO Requests: 263 (5%), requests per second: 53, mean latency: 560 ms
+[Wed Jan 13 2016 15:36:57 GMT+0000 (GMT)] INFO Requests: 541 (11%), requests per second: 56, mean latency: 950 ms
+[Wed Jan 13 2016 15:37:02 GMT+0000 (GMT)] INFO Requests: 809 (16%), requests per second: 54, mean latency: 1380 ms
+[Wed Jan 13 2016 15:37:07 GMT+0000 (GMT)] INFO Requests: 1087 (22%), requests per second: 56, mean latency: 1710 ms
+[Wed Jan 13 2016 15:37:12 GMT+0000 (GMT)] INFO Requests: 1355 (27%), requests per second: 54, mean latency: 2170 ms
+[Wed Jan 13 2016 15:37:17 GMT+0000 (GMT)] INFO Requests: 1632 (33%), requests per second: 55, mean latency: 2370 ms
+[Wed Jan 13 2016 15:37:22 GMT+0000 (GMT)] INFO Requests: 1900 (38%), requests per second: 54, mean latency: 2940 ms
+[Wed Jan 13 2016 15:37:27 GMT+0000 (GMT)] INFO Requests: 2177 (44%), requests per second: 55, mean latency: 3080 ms
+[Wed Jan 13 2016 15:37:32 GMT+0000 (GMT)] INFO Requests: 2445 (49%), requests per second: 54, mean latency: 3710 ms
+[Wed Jan 13 2016 15:37:37 GMT+0000 (GMT)] INFO Requests: 2724 (54%), requests per second: 56, mean latency: 3950 ms
+[Wed Jan 13 2016 15:37:42 GMT+0000 (GMT)] INFO Requests: 2980 (60%), requests per second: 51, mean latency: 2410 ms
+[Wed Jan 13 2016 15:37:47 GMT+0000 (GMT)] INFO Requests: 3236 (65%), requests per second: 51, mean latency: 0 ms
+[Wed Jan 13 2016 15:37:52 GMT+0000 (GMT)] INFO Requests: 3358 (67%), requests per second: 24, mean latency: 0 ms
+[Wed Jan 13 2016 15:37:57 GMT+0000 (GMT)] INFO Requests: 3498 (70%), requests per second: 28, mean latency: 530 ms
+[Wed Jan 13 2016 15:38:02 GMT+0000 (GMT)] INFO Requests: 3766 (75%), requests per second: 54, mean latency: 830 ms
+[Wed Jan 13 2016 15:38:07 GMT+0000 (GMT)] INFO Requests: 4042 (81%), requests per second: 55, mean latency: 1130 ms
+[Wed Jan 13 2016 15:38:12 GMT+0000 (GMT)] INFO Requests: 4311 (86%), requests per second: 54, mean latency: 1590 ms
+[Wed Jan 13 2016 15:38:17 GMT+0000 (GMT)] INFO Requests: 4588 (92%), requests per second: 55, mean latency: 1840 ms
+[Wed Jan 13 2016 15:38:22 GMT+0000 (GMT)] INFO Requests: 4856 (97%), requests per second: 54, mean latency: 2370 ms
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Target URL:          http://127.0.0.1:8002
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Max requests:        5000
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Concurrency level:   20
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Agent:               none
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Requests per second: 50
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Completed requests:  5000
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Total errors:        0
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Total time:          102.57868270799999 s
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Requests per second: 49
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Total time:          102.57868270799999 s
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO Percentage of the requests served within a certain time
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO   50%      3 ms
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO   90%      14 ms
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO   95%      17405 ms
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO   99%      42602 ms
+[Wed Jan 13 2016 15:38:24 GMT+0000 (GMT)] INFO  100%      52406 ms (longest request)
+
+~~~~
+
+M	Hits:	0	Misses:	245
+Work Starting. Pending: 244 Delay: 53800
+M	Hits:	0	Misses:	246
+Work Starting. Pending: 245 Delay: 54000
+Work Finished. Pending:  245
+H	Hits:	0	Misses:	246
+H	Hits:	1	Misses:	246
+H	Hits:	2	Misses:	246
+
+
+
+}~~~
+Analysis:
+
+- In the first ~ 5s, we get a large number of queries hitting the workload until the first returns. All the results are returned from there. The ~200 workloads continue in the background, slowly returning
+- New requests are satisfied, until the original dogpile has been cleared.
+- A new flurry of requests hits the workload after ~5s
