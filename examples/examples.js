@@ -1,4 +1,4 @@
-var Sifaka = require("../index");
+var Sifaka = require("../index").Sifaka;
 
 // Import a backend
 var Backend = require("../backends/inmemory-test"); // For demo purposes

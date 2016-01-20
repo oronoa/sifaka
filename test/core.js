@@ -20,7 +20,7 @@ suite('Core ', function () {
     });
 
     test('should have basic properties', function (done) {
-        var Sifaka = require("../index.js");
+        var Sifaka = require("../index.js").Sifaka;
         should.exist(Sifaka);
         var Backend = require("../backends/inmemory-test");
         var options = {};
@@ -29,83 +29,9 @@ suite('Core ', function () {
         cache.should.have.property("get");
         done();
     });
-    //test('should deal with errors in the work function', function (done) {
-    //    var Sifaka = require("../index.js");
-    //    should.exist(Sifaka);
-    //    var Backend = require("../backends/inmemory-test");
-    //    var options = {};
-    //    var cache = new Sifaka(new Backend(), options)
-    //    should.exist(cache);
-    //    cache.should.have.property("get");
-    //
-    //    cache.get("abc", function (callback) {
-    //        callback(new Error("Something went wrong"), null);
-    //    }, {}, function (err, data) {
-    //        should.exist(err);
-    //        err.should.have.property("message", "Something went wrong");
-    //        done();
-    //    });
-    //});
-    //
-    //test('should deal with errors in the work function when there is a pending queue', function (done) {
-    //    var Sifaka = require("../index.js");
-    //    should.exist(Sifaka);
-    //    var Backend = require("../backends/inmemory-test");
-    //    var options = {};
-    //    var cache = new Sifaka(new Backend(), options)
-    //
-    //    var workFn = function (callback) {
-    //        setTimeout(function () {
-    //            callback(new Error("boom"), null);
-    //        }, 300);
-    //    }
-    //
-    //    var count = 0;
-    //    var complete = function (err, data) {
-    //        count += 1;
-    //        should.exist(err);
-    //        err.should.have.property("message", "boom");
-    //        if(count == 2) {
-    //            done();
-    //        }
-    //    }
-    //    cache.get("abc", workFn, {}, complete);
-    //    cache.get("abc", workFn, {}, complete);
-    //});
-    //
-    //test('should cache with errors in the work function', function (done) {
-    //    var Sifaka = require("../index.js");
-    //    should.exist(Sifaka);
-    //    var Backend = require("../backends/inmemory-test");
-    //    var options = {};
-    //    var cache = new Sifaka(new Backend(), options)
-    //    var workCount = 1;
-    //    var workFn = function (callback) {
-    //        setTimeout(function () {
-    //            var error = new Error("boom");
-    //            error.cache = true;
-    //            callback(error, null);
-    //        }, 300);
-    //    }
-    //
-    //    var count = 0;
-    //    var complete = function (err, data) {
-    //        count += 1;
-    //        should.exist(err);
-    //        err.should.have.property("message", "boom");
-    //        if(count == 2) {
-    //            workCount.should.equal(1);
-    //            done();
-    //        } else {
-    //            cache.get("abc", workFn, {}, complete);
-    //        }
-    //    }
-    //
-    //    cache.get("abc", workFn, {}, complete);
-    //});
 
     test('should emit stats', function (done) {
-        var Sifaka = require("../index.js");
+        var Sifaka = require("../index.js").Sifaka;
         should.exist(Sifaka);
         var Backend = require("../backends/inmemory-test");
         var options = {statsInterval: 75};
@@ -135,6 +61,44 @@ suite('Core ', function () {
             stats[1].should.containEql({hit: 1, miss: 0, work: 0})
             done();
         }, 200)
+    });
+
+    test('should serialize', function (done) {
+        var Sifaka = require("../index.js").Sifaka;
+        should.exist(Sifaka);
+        var Backend = require("../backends/inmemory-test");
+        var serializer = require("../serializers/").json({reviver: require("../serializers/").jsonRevivers.ISODate});
+
+        var options = {statsInterval: 75, serializer: serializer};
+        var backend = new Backend()
+        var cache = new Sifaka(backend, options);
+        var key = "abc";
+
+        var result = {somekey: "a", anotherKey: 7, aDate: new Date("2016-01-01")};
+        var workFunction = function (callback) {
+            setTimeout(function(){callback(null, result)}, 50);
+        };
+        var count = 0;
+        var complete = function(err, data){
+            count ++;
+            backend.storage.should.have.property(key);
+            var stored = backend.storage[key];
+            stored.should.have.property("data");
+            stored.data.should.be.type("string");
+            stored.data.should.equal('{"somekey":"a","anotherKey":7,"aDate":"2016-01-01T00:00:00.000Z"}');
+            data.should.be.type("object");
+            data.should.deepEqual(result);
+            if(count == 3) {
+                done();
+            }
+        }
+
+        cache.get(key, workFunction, {}, complete);
+        cache.get(key, workFunction, {}, complete);
+        setTimeout(function () {
+            cache.get(key, workFunction, {}, complete);
+        }, 75);
+
     });
 });
 
