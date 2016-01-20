@@ -1,5 +1,5 @@
 var should = require("should");
-var Sifaka = require("../../index.js");
+var Sifaka = require("../../index.js").Sifaka;
 
 module.exports = function (DEBUG) {
     return {
@@ -144,6 +144,47 @@ module.exports = function (DEBUG) {
             cache.get("abc", workFunction, {}, complete);
             setTimeout(function () {
                 cache.get("abc", workFunction, {}, complete);
+            }, 500);
+
+        },
+
+        /**
+         * Two requests come in before the work has been done. A third request comes in after the work is complete. The 3rd
+         * should be returned directly from the cache.
+         */
+        'should respect a noCache flag set by the policy calculation and not store the result': function (backend, done) {
+            should.exist(Sifaka);
+            var options = {debug: DEBUG};
+            var cache = new Sifaka(backend, options)
+            should.exist(cache);
+            var Policy = require("../../cache_policies").noCache;
+            var policy = new Policy();
+
+            var returnValue = "12345asdf";
+            var callCount = 0;
+            var workFunction = function (callback) {
+                callCount += 1;
+                setTimeout(function () {
+                    callback(null, returnValue);
+                }, 200);
+            };
+            var completionCount = 0;
+            var complete = function (err, data) {
+                should.not.exist(err);
+                should.exist(data);
+                data.should.equal("12345asdf");
+                completionCount += 1;
+
+                if(completionCount == 3) {
+                    callCount.should.equal(2); // The third call should also hit the work function
+                    done();
+                }
+            }
+
+            cache.get("abc", workFunction, {policy: policy}, complete);
+            cache.get("abc", workFunction, {policy: policy}, complete);
+            setTimeout(function () {
+                cache.get("abc", workFunction, {policy: policy}, complete);
             }, 500);
 
         },

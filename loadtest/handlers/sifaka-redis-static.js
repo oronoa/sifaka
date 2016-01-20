@@ -1,4 +1,4 @@
-var Sifaka = require("../../index");
+var Sifaka = require("../../index").Sifaka;
 var redis = require("redis");
 
 var Backend = require("../../backends/inmemory-test");

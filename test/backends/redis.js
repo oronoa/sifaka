@@ -15,7 +15,8 @@ suite('Redis Backend', function () {
     });
 
     setup(function (done) {
-        client = redis.createClient({host: "redishost", return_buffers: true, prefix: "sifaka-test:"});
+        var host = process.env.TRAVIS ? "localhost" : "redishost";
+        client = redis.createClient({host: host, return_buffers: true, prefix: "sifaka-test:"});
         var multi = client.multi();
         client.del("test:data:abc");
         client.del("test:lock:abc");

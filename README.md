@@ -1,4 +1,8 @@
 # Sifaka
+
+[![Build Status](https://travis-ci.org/dhendo/sifaka.svg?branch=master)](https://travis-ci.org/dhendo/sifaka)
+
+
 Sifaka is a pluggable caching library with an emphasis on protecting the backend from being overloaded. Approaches taken:
 * [Cache Stampede](http://en.wikipedia.org/wiki/Cache_stampede) / [dog piling](https://www.leaseweb.com/labs/2013/03/avoiding-the-memcache-dog-pile-effect/) protection by maintaining a distributed lock between cache clients, so the work function is executed at most once at any time for a given key.
 * Allowing stale data to be served for a configurable period of time. During this time, one request will be triggered to update the cache for the key.
@@ -24,7 +28,9 @@ Try to retrieve an item from the cache. If it is not there, either wait for anot
 * mocha tests can be run using `npm test` `mocha` or `make test`!
 * there is a loadtest harness in /loadtest. Run `node index.js --handler [handler]` in one console, then hit localhost on port 8002 (e.g. with the node package loadtest: `node loadtest.js -n 5000 -c 20 http://127.0.0.1:8002 --rps 50`). There are some example results with various handlers: no caching (work function gets called for every request), using the node-cache module - which will hit the work with a stampede, and two sifaka handlers.
 
-## Sifaka?
+## Why Sifaka?
+> There are only two hard problems in Computer Science: cache invalidation and naming things.
+> - Phil Karlton
 
-Why not. Also, [they're awesome](https://en.wikipedia.org/wiki/Verreaux%27s_sifaka). 
+Why not. I decided to spend more cycles on getting the caching side of things right, rather than coming up with a better name. Also, [they're awesome](https://en.wikipedia.org/wiki/Verreaux%27s_sifaka). 
 

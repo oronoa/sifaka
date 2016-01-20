@@ -2,6 +2,7 @@
 var EventEmitter = require('events');
 var noop = function () {
 };
+
 function Sifaka(backend, options) {
     EventEmitter.call(this);
     var self = this;
@@ -10,11 +11,12 @@ function Sifaka(backend, options) {
     this.backend = backend;
     this.storage = {};
     this.debugLogger = (options.debug === true ? console.log : options.debug) || null;
-    this.initialLockCheckDelay = typeof options.initialLockCheckDelay !== "undefined" ? options.initialLockCheckDelay : 50;
-    this.lockCheckInterval = typeof options.lockCheckInterval !== "undefined" ? options.lockCheckInterval : 50;
-    this.lockCheckBackoff = typeof options.lockCheckBackoff !== "undefined" ? options.lockCheckBackoff : 50;
+    this.initialLockCheckDelay = typeof options.initialLockCheckDelay !== "undefined" ? options.initialLockCheckDelay : 20;
+    this.lockCheckInterval = typeof options.lockCheckInterval !== "undefined" ? options.lockCheckInterval : 20;
+    this.lockCheckBackoff = typeof options.lockCheckBackoff !== "undefined" ? options.lockCheckBackoff : 20;
     this.cachePolicy = options.cachePolicy || new (require("./cache_policies/static"))();
     this.statsInterval = options.statsInterval || 0;
+    this.serializer = options.serializer || null;
     this.stats = {hit: 0, miss: 0, work: 0};
 
     if(this.statsInterval) {
@@ -74,14 +76,17 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
             if(state.hit === true) {
                 self.stats.hit++;
                 self.debug(key, "CACHE HIT");
-                callback(err, data);
+
+                self._deserialize(data, function (deserializeErr, serializedData) {
+                    callback(err || deserializeErr, serializedData);
+                });
 
                 // check if we need to refresh the data in the background
                 if(state.stale) {
                     self.stats.stale++;
                     self.backend.lock(key, null, function (err, acquired) {
                         if(acquired) {
-                            self._doWork(key, workFn);
+                            self._doWork(key, options, workFn);
                         }
                     });
                 }
@@ -91,7 +96,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                 self.debug(key, "CACHE MISS");
                 self.backend.lock(key, null, function (err, acquired) {
                     if(acquired === true) {
-                        self._doWork(key, workFn);
+                        self._doWork(key, options, workFn);
                     } else {
                         self.debug(key, "WAITING FOR LOCK");
                         self.locks[key] = self._watchLock(key); // We're already aware of this lock being held
@@ -107,8 +112,9 @@ Sifaka.prototype._addPending = function (key, callback) {
     this.pendingCallbacks[key] = this.pendingCallbacks[key] || [];
     this.pendingCallbacks[key].push(callback);
 };
-Sifaka.prototype._calculateCacheTimes = function (key, duration, data, callback) {
-    this.cachePolicy.calculate(key, duration, data, callback);
+Sifaka.prototype._calculateCacheTimes = function (key, duration, data, options, callback) {
+    options = options || {};
+    (options.policy || this.cachePolicy).calculate(key, duration, data, callback);
 };
 Sifaka.prototype._checkForResult = function (key) {
     var self = this;
@@ -124,7 +130,9 @@ Sifaka.prototype._checkForResult = function (key) {
             self.debug(key, "RESULT CHECK: HIT");
             self.locks[key] = null;
             self.lockCheckCounts[key] = 0;
-            self._resolvePendingCallbacks(key, err, data);
+            self._deserialize(data, function (err, serializedData) {
+                self._resolvePendingCallbacks(key, err, serializedData);
+            });
         } else {
             self.lockCheckCounts[key] += 1;
             var nextInterval = self.lockCheckInterval + (self.lockCheckCounts[key] * self.lockCheckBackoff);
@@ -136,7 +144,25 @@ Sifaka.prototype._checkForResult = function (key) {
     });
 
 };
-Sifaka.prototype._doWork = function (key, workFunction, callback) {
+Sifaka.prototype._serialize = function (data, callback) {
+    var serializer = this.options.serializer;
+    if(serializer) {
+        serializer.serialize(data, {}, callback);
+    } else {
+        callback(null, data);
+    }
+
+};
+Sifaka.prototype._deserialize = function (data, callback) {
+    var serializer = this.options.serializer;
+    if(serializer) {
+        serializer.deserialize(data, {}, callback);
+    } else {
+        callback(null, data);
+    }
+};
+
+Sifaka.prototype._doWork = function (key, options, workFunction, callback) {
     var self = this;
     self.debug(key, "TRIGGERING WORK");
     var start = new Date();
@@ -148,8 +174,14 @@ Sifaka.prototype._doWork = function (key, workFunction, callback) {
                 self._resolvePendingCallbacks(key, workError, data);
             });
         } else {
-            self._calculateCacheTimes(key, duration, data, function (err, cachePolicyResult) {
-                self.backend.store(key, data, workError, {unlock: true, cachePolicy: cachePolicyResult}, noop);
+            self._calculateCacheTimes(key, duration, data, options, function (err, cachePolicyResult) {
+                if(!cachePolicyResult.noCache) {
+                    self._serialize(data, function (err, serializedData) {
+                        self.backend.store(key, serializedData, workError, {
+                            unlock: true, cachePolicy: cachePolicyResult
+                        }, noop);
+                    });
+                }
                 self._resolvePendingCallbacks(key, workError, data);
 
                 // Needed?
@@ -194,4 +226,9 @@ Sifaka.prototype._watchLock = function (key) {
         self._checkForResult(key)
     }, self.options.initialLockCheckDelay);
 };
-module.exports = Sifaka;
+module.exports = {
+    Sifaka: Sifaka,
+    backends: require("./backends"),
+    cache_policies: require("./cache_policies"),
+    serializers: require("./serializers")
+};

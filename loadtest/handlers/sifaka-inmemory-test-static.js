@@ -1,4 +1,4 @@
-var Sifaka = require("../../index");
+var Sifaka = require("../../index").Sifaka;
 
 var Backend = require("../../backends/inmemory-test");
 var CachePolicy = require("../../cache_policies/static");
