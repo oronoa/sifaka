@@ -12,16 +12,52 @@ module.exports = function (DEBUG) {
             var returnValue = "12345asdf";
             cache.get("abc", function (callback) {
                 callback(null, returnValue);
-            }, {}, function (err, data) {
+            }, {}, function (err, data, meta) {
+                should.exist(meta);
                 should.not.exist(err);
                 should.exist(data);
                 data.should.equal("12345asdf");
                 done();
             });
+        }, 'should correctly return a positive exists call': function (backend, done) {
+            should.exist(Sifaka);
+            var options = {debug: DEBUG};
+            var cache = new Sifaka(backend, options)
+            should.exist(cache);
+
+            var returnValue = "12345asdf";
+            cache.get("abc", function (callback) {
+                callback(null, returnValue);
+            }, {}, function (err, data, meta) {
+                should.exist(meta);
+                should.not.exist(err);
+                should.exist(data);
+                data.should.equal("12345asdf");
+                cache.exists("abc", {}, function (err, exists, meta) {
+                    should.exist(meta)
+                    meta.hit.should.equal(true);
+
+                    exists.should.equal(true);
+                    done();
+                })
+            });
+        },
+
+        'should correctly return a negative exists call': function (backend, done) {
+            should.exist(Sifaka);
+            var options = {debug: DEBUG};
+            var cache = new Sifaka(backend, options)
+            should.exist(cache);
+            cache.exists("abc", {}, function (err, exists, meta) {
+                should.exist(meta);
+                meta.hit.should.equal(false);
+                exists.should.equal(false);
+                done();
+            });
+
         },
 
         'should only fire the work function once': function (backend, done) {
-
             should.exist(Sifaka);
             var options = {debug: DEBUG};
             var cache = new Sifaka(backend, options)
@@ -36,9 +72,11 @@ module.exports = function (DEBUG) {
                 }, 1000);
             };
             var completionCount = 0;
-            var complete = function (err, data) {
+            var complete = function (err, data, meta) {
                 should.not.exist(err);
                 should.exist(data);
+                should.exist(meta);
+
                 data.should.equal("12345asdf");
                 completionCount += 1;
 
@@ -55,6 +93,116 @@ module.exports = function (DEBUG) {
             cache.get(key, workFunction, {}, complete);
         },
 
+        'should return only meta when requested on hit': function (backend, done) {
+
+            should.exist(Sifaka);
+            var options = {debug: DEBUG};
+            var cache = new Sifaka(backend, options)
+            should.exist(cache);
+            var key = "abc";
+            var returnValue = "12345asdf";
+            var callCount = 0;
+            var workFunction = function (callback) {
+                callCount += 1;
+                setTimeout(function () {
+                    cache.debug("", "Finished Work")
+                    callback(null, returnValue, function (err, succeeded) {
+                        should.not.exist(err);
+                        succeeded.should.equal(true);
+                        cache.get(key, workFunction, {metaOnly: "hit"}, complete);
+                    });
+                }, 100);
+            };
+            var completionCount = 0;
+            var complete = function (err, data, meta) {
+                should.not.exist(err);
+
+                should.exist(meta);
+
+                completionCount += 1;
+
+                if(completionCount < 3) {
+                    meta.hit.should.equal(false);
+                    meta.should.have.property("pending", true);
+                    should.exist(data);
+                    data.should.equal(returnValue);
+                }
+
+                if(completionCount == 3) {
+                    callCount.should.equal(1);
+                    meta.should.not.have.property("pending");
+                    meta.hit.should.equal(true);
+                    should.not.exist(data);
+                    done();
+                }
+            }
+
+            cache.get(key, workFunction, {metaOnly: "hit"}, complete);
+            cache.get(key, workFunction, {metaOnly: "hit"}, complete);
+        },
+
+        'should return only meta when requested on miss': function (backend, done) {
+
+            should.exist(Sifaka);
+            var options = {debug: DEBUG};
+            var cache = new Sifaka(backend, options)
+            should.exist(cache);
+            var key = "abc";
+            var returnValue = "12345asdf";
+            var callCount = 0;
+            var workFunction = function (callback) {
+                callCount += 1;
+                setTimeout(function () {
+                    callback(null, returnValue);
+                    // Trigger the third cache call once we know we will get a hit
+                    setTimeout(function () {
+                        cache.get(key, workFunction, {metaOnly: "miss"}, complete)
+                    }, 100);
+                }, 100);
+            };
+            var completionCount = 0;
+            var complete = function (err, data, meta) {
+                should.not.exist(err);
+
+                should.exist(meta);
+
+                completionCount += 1;
+
+                if(completionCount < 3) {
+                    // first two requests should be misses, and no work should happen
+                    callCount.should.equal(0);
+                    meta.hit.should.equal(false);
+                    meta.should.not.have.property("pending"); // We should have bypassed the pending callbacks
+                    should.not.exist(data);
+                }
+
+                if(completionCount == 2) {
+                    // Trigger a full-fat request, so we get a hit
+                    cache.get(key, workFunction, {}, complete);
+                }
+
+                if(completionCount == 3) {
+                    // Response from normal query
+                    callCount.should.equal(1);
+                    should.exist(data);
+                    data.should.equal(returnValue);
+
+                }
+
+                if(completionCount == 4) {
+                    callCount.should.equal(1);
+                    meta.should.not.have.property("pending");
+                    meta.hit.should.equal(true);
+                    should.exist(data);
+                    data.should.equal(returnValue);
+                    done();
+                }
+            }
+
+            cache.get(key, workFunction, {metaOnly: "miss"}, complete);
+            cache.get(key, workFunction, {metaOnly: "miss"}, complete);
+        },
+
         'should resolve callbacks on a lock held elsewhere': function (backend, done) {
             should.exist(Sifaka);
             var options = {debug: DEBUG, initialLockCheckDelay: 50, lockCheckInterval: 200, lockCheckBackoff: 0};
@@ -69,9 +217,11 @@ module.exports = function (DEBUG) {
                 throw new Error("Should not be called");
             };
             var completionCount = 0;
-            var complete = function (err, data) {
+            var complete = function (err, data, meta) {
                 should.not.exist(err);
                 should.exist(data);
+                should.exist(meta);
+
                 data.should.equal("12345asdf");
                 completionCount += 1;
 
@@ -128,9 +278,11 @@ module.exports = function (DEBUG) {
                 }, 200);
             };
             var completionCount = 0;
-            var complete = function (err, data) {
+            var complete = function (err, data, meta) {
                 should.not.exist(err);
                 should.exist(data);
+                should.exist(meta);
+
                 data.should.equal("12345asdf");
                 completionCount += 1;
 
@@ -169,7 +321,8 @@ module.exports = function (DEBUG) {
                 }, 200);
             };
             var completionCount = 0;
-            var complete = function (err, data) {
+            var complete = function (err, data, meta) {
+                should.exist(meta);
                 should.not.exist(err);
                 should.exist(data);
                 data.should.equal("12345asdf");
@@ -329,13 +482,12 @@ module.exports = function (DEBUG) {
                     err.should.have.property("cached", true);
                     done();
                 } else {
-                    setTimeout(function() {
+                    setTimeout(function () {
                         cache.get("abc", workFn, {}, complete);
                     }, 500);
                 }
             }
             cache.get("abc", workFn, {}, complete);
         }
-
     };
 };

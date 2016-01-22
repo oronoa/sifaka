@@ -35,24 +35,32 @@ Redis.prototype._getState = function (key, callback) {
 
 }
 
-Redis.prototype._decodeData = function (binary, data) {
+Redis.prototype._decodeData = function (binary, data, options) {
     var result = {};
 
-    data[0] = data[0] || {};
-    if(binary) {
-        result.data = data[0].data; // Buffer
+    result.lock = data[0] ? data[0].toString() : null; // Buffer to String
+
+    if(data.length == 4) {
+        result.expiry = data[1] ? data[1].toString() : null; // Buffer to String
+        result.stale = data[2] ? data[2].toString() : null; // Buffer to String
+        result.error = data[3] ? new Error(data[3].toString()) : void(0); // String or undefined
+        result.data = void 0;
     } else {
-        result.data = data[0].data ? data[0].data.toString() : void(0); // String or undefined
+        var hash = data[1] || {};
+        result.expiry = hash.expiry ? hash.expiry.toString() : null; // Buffer to String
+        result.stale = hash.stale ? hash.stale.toString() : null; // Buffer to String
+        if(binary) {
+            result.data = hash.data; // Buffer
+        } else {
+            result.data = hash.data ? hash.data.toString() : void(0); // String or undefined
+        }
+        if(hash.error) {
+            result.error = hash.error ? new Error(hash.error.toString()) : void(0); // String or undefined
+        }
+
     }
-    result.expiry = data[0].expiry ? data[0].expiry.toString() : null; // Buffer to String
-    result.stale = data[0].stale ? data[0].stale.toString() : null; // Buffer to String
-    result.lock = data[1] ? data[1].toString() : null; // Buffer to String
 
-    if(data[0].error) {
-        result.error = data[0].error ? new Error(data[0].error.toString()) : void(0); // String or undefined
-    }
-
-
+    result.hit = result.stale && result.expiry;
 
     // Cast back to int
     if(result.stale) {
@@ -87,26 +95,61 @@ Redis.prototype._getState = function (data, options, callback) {
         state.ownLock = true;
     }
 
-    if(typeof data.data !== "undefined" && !state.expired) {
+    if(data.hit || (data.stale && !state.expired)) {
         state.hit = true;
     }
 
     return state;
 };
 
+Redis.prototype._getPipeline = function (key, metaOnly) {
+    var self = this;
+
+    var multi = self.client.multi();
+
+    // Lock first
+    multi.get(self.namespace + "lock:" + key);
+
+    // If we want the data back, we can do a hgetall
+    if(!metaOnly || metaOnly == "miss") {
+        multi.hgetall(self.namespace + "data:" + key);
+    } else {
+        // Otherwise load the other fields individually
+        multi.hget(self.namespace + "data:" + key, "expiry");
+        multi.hget(self.namespace + "data:" + key, "stale");
+        multi.hget(self.namespace + "data:" + key, "error");
+    }
+
+    return multi;
+};
+
 Redis.prototype.get = function (key, options, callback) {
+    var self = this;
+    var binary = options.binary || false;
+    var metaOnly = options.metaOnly || null;
+
+    var multi = self._getPipeline(key, metaOnly)
+
+    multi.exec(function (err, data) {
+        data = self._decodeData(binary, data, options);
+        var state = self._getState(data, options);
+
+        return callback(data.error, data.data, state);
+    });
+};
+
+Redis.prototype.exists = function (key, options, callback) {
     var self = this;
     var binary = options.binary || false;
     var multi = self.client.multi();
 
-    multi.hgetall(self.namespace + "data:" + key);
-    multi.get(self.namespace + "lock:" + key);
+    var multi = self._getPipeline(key, "hit");
 
     multi.exec(function (err, data) {
-        data = self._decodeData(binary, data);
+        data = self._decodeData(binary, data, options);
         var state = self._getState(data, options);
 
-        return callback(data.error, data.data, state);
+        return callback(data.error, state.hit, state);
     });
 };
 
@@ -119,8 +162,8 @@ Redis.prototype.get = function (key, options, callback) {
  */
 Redis.prototype.lock = function (key, options, callback) {
     // Simple lock from http://redis.io/topics/distlock
-    this.client.set(this.namespace + "lock:" + key, this.lockID, "NX", "EX", (this.lockTime || 30), function (err, data) {
-        var acquired = data ? true : false;
+    this.client.set(this.namespace + "lock:" + key, this.lockID, "NX", "EX", (this.lockTime || 60), function (err, data) {
+        var acquired = (data && data.toString() == "OK");
         return callback(null, acquired);
     });
 }
@@ -173,10 +216,17 @@ Redis.prototype.store = function (key, value, error, options, callback) {
     multi.expire(self.namespace + "data:" + key, expiryTimeSeconds);
 
     multi.exec(function (err, replies) {
+
+        var succeeded = replies.reduce(function (previousValue, currentValue) {
+                return previousValue + currentValue
+            }) === 4;
+
         if(options.unlock) {
-            self.unlock(key, {}, callback)
+            self.unlock(key, options, function (unlockErr, unlocked) {
+                callback(err || unlockErr, succeeded && unlocked);
+            });
         } else {
-            callback(null, true);
+            callback(null, succeeded);
         }
 
     });

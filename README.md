@@ -20,7 +20,29 @@ There are currently two cache policies available:
 ## Methods
 
 #### `sifaka.get(key,workFunction,[options], callback)`
-Try to retrieve an item from the cache. If it is not there, either wait for another cache client to do the work (if it is already underway) or do the work locally. The value will then be returned via callback.
+Try to retrieve an item from the cache. If it is not there, either wait for another cache client to do the work (if it is already underway) or do the work locally. The value will then be returned via `callback(err, data, meta)`.
+
+
+##### Options Values
+
+###### `options.metaOnly` - request that metadata only be returned from the backend in either a hit or miss scenario
+
+| options.metaOnly value | cache (hit\|miss) | data returned | work function called |
+|:---:|:---:|:---:|:---:|
+| not set / null | hit | y | n |
+| not set / null | miss | y | if required |
+| "hit" | hit | n | n |
+| "hit" | miss | y | if required |
+| "miss" | hit | y | n |
+| "miss" | miss | n | n |
+
+This means you can short circuit the work function on a miss and fetching data from the backend on a hit. This may be useful to:
+
+Return data on a hit, but not recalculate the data on a miss
+Recalculate on a miss, but only report the existence on a hit.
+
+#### `sifaka.exists(key,[options], callback)`
+Check the state of an item in the cache. Will be returned by `callback(err, meta)`
 
 
 ## Testing

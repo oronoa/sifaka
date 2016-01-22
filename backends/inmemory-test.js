@@ -55,17 +55,46 @@ InMemoryTest.prototype.get = function (key, options, callback) {
         }
 
         var data = self.storage[key];
-        var err = null;
+        err = null;
         if(data) {
             err = data.error || null;
         }
 
-        var value = null;
-        if(data){
-            value = data.data;
+        var value = void 0;
+
+        if(options.metaOnly == "hit") {
+            value = void 0;
+        } else {
+            if(data) {
+                value = data.data;
+            }
         }
 
         return callback(err, value, state);
+    });
+}
+InMemoryTest.prototype.exists = function (key, options, callback) {
+    var state = {locked: false, ownLock: false, stale: false, hit: false};
+    var self = this;
+    this._getState(key, function (err, expiryState) {
+        // Figure out lock state
+        if(self.locks[key]) {
+            state.ownLock = (self.locks[key] === self.lockID); // Someone else got to the lock if they don't match. Contrived for testing
+            state.locked = true;
+        }
+
+        if(typeof self.storage[key] !== "undefined" && !expiryState.expired) {
+            state.hit = true;
+            state.stale = expiryState.stale;
+            exists = true;
+        } else {
+            state.hit = false;
+            exists = true;
+        }
+        err = null;
+        var exists = state.hit;
+
+        return callback(err, exists, state);
     });
 }
 
