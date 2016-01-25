@@ -111,7 +111,7 @@ module.exports = function (DEBUG) {
                         succeeded.should.equal(true);
                         cache.get(key, workFunction, {metaOnly: "hit"}, complete);
                     });
-                }, 100);
+                }, 300);
             };
             var completionCount = 0;
             var complete = function (err, data, meta) {
@@ -122,7 +122,7 @@ module.exports = function (DEBUG) {
                 completionCount += 1;
 
                 if(completionCount < 3) {
-                    meta.hit.should.equal(false);
+                    meta.hit.should.equal(false, "Completion " + completionCount + " should have been a miss, but registered as a hit.");
                     meta.should.have.property("pending", true);
                     should.exist(data);
                     data.should.equal(returnValue);
@@ -157,8 +157,8 @@ module.exports = function (DEBUG) {
                     // Trigger the third cache call once we know we will get a hit
                     setTimeout(function () {
                         cache.get(key, workFunction, {metaOnly: "miss"}, complete)
-                    }, 100);
-                }, 100);
+                    }, 200);
+                }, 200);
             };
             var completionCount = 0;
             var complete = function (err, data, meta) {
