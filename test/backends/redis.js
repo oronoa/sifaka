@@ -2,7 +2,7 @@
 
 var Backend = require("../../backends/redis");
 var redis = require("redis");
-
+var DEBUG = false;
 var should = require('should');
 var client;
 suite('Redis Backend', function () {
@@ -15,7 +15,7 @@ suite('Redis Backend', function () {
     });
 
     setup(function (done) {
-        var host = process.env.TRAVIS ? "localhost" : "redishost";
+        var host = "localhost";
         client = redis.createClient({host: host, return_buffers: true, prefix: "sifaka-test:"});
         var multi = client.multi();
         client.del("test:data:abc");
@@ -59,7 +59,7 @@ suite('Redis Backend', function () {
         });
     });
 
-    var sharedTests = require("./common_tests")();
+    var sharedTests = require("./common_tests")(DEBUG);
     var runTest = function (testName, tst) {
         test(testName, function (done) {
             var testFn = tst.bind(this);

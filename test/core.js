@@ -27,6 +27,7 @@ suite('Core ', function () {
         var cache = new Sifaka(new Backend(), options)
         should.exist(cache);
         cache.should.have.property("get");
+        cache.should.have.property("exists");
         done();
     });
 
@@ -73,22 +74,27 @@ suite('Core ', function () {
         var backend = new Backend()
         var cache = new Sifaka(backend, options);
         var key = "abc";
-
+        var stored = 0;
         var result = {somekey: "a", anotherKey: 7, aDate: new Date("2016-01-01")};
         var workFunction = function (callback) {
-            setTimeout(function(){callback(null, result)}, 50);
+            setTimeout(function(){callback(null, result, function(){
+                stored += 1;
+            })}, 50);
         };
         var count = 0;
-        var complete = function(err, data){
+        var complete = function(err, data, meta){
             count ++;
-            backend.storage.should.have.property(key);
-            var stored = backend.storage[key];
-            stored.should.have.property("data");
-            stored.data.should.be.type("string");
-            stored.data.should.equal('{"somekey":"a","anotherKey":7,"aDate":"2016-01-01T00:00:00.000Z"}');
+            should.exist(meta);
+
+
             data.should.be.type("object");
             data.should.deepEqual(result);
             if(count == 3) {
+                backend.storage.should.have.property(key);
+                var stored = backend.storage[key];
+                stored.should.have.property("data");
+                stored.data.should.be.type("string");
+                stored.data.should.equal('{"somekey":"a","anotherKey":7,"aDate":"2016-01-01T00:00:00.000Z"}');
                 done();
             }
         }

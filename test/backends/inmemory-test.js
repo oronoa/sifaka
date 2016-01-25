@@ -1,6 +1,7 @@
 /*global suite, test, suiteSetup, suiteTeardown, setup, Object, Array */
 
 var Backend = require("../../backends/inmemory-test");
+var DEBUG = false;
 
 var should = require('should');
 suite('InMemoryTest Backend', function () {
@@ -40,7 +41,7 @@ suite('InMemoryTest Backend', function () {
         });
     });
 
-    var sharedTests = require("./common_tests")();
+    var sharedTests = require("./common_tests")(DEBUG);
     var runTest = function(testName, tst){
         test(testName, function (done) {
             var testFn = tst.bind(this);
