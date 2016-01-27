@@ -216,6 +216,7 @@ module.exports = function (DEBUG) {
         },
 
         'should resolve callbacks on a lock held elsewhere': function (backend, done) {
+            this.timeout(5000);
             should.exist(Sifaka);
 
             var CachePolicy = require("../../cache_policies/static");
