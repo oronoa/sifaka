@@ -3,10 +3,26 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+
+### Added
+
+### Changed
+
+## [0.4.0] - 2016-01-27
+
+### Added
+- Added extra parameter to the work function callback, so you can pass back extra information. This is then passed to the policy calculation, so for example, you can alter the cache time, or not cache.
+
+### Changed
+- Allow name to be passed in to constructor - will add it to debug messages.
+- Expose staleTime and expiryTime in the state parameter if available
+- Removed responsiblity for calculating expirytimes from the backends. Altered signature.
+- Pass the cache state to the cache calculations, so a decision can be adjusted based on the current state of the cache. Signature change to calculate().
+
+## [0.3.0] - 2016-01-25
 ### Added
 - Added meta to result callback
 - Added ability to request meta only in the response. Behaviour:
-
 
 | options.metaOnly value | cache (hit\|miss) | data returned | work function called |
 |:---:|:---:|:---:|:---:|

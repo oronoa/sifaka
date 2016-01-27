@@ -24,6 +24,9 @@ InMemoryTest.prototype._getState = function (key, callback) {
     var timings = this.timings[key] || {};
     var now = new Date();
 
+    expiryState.staleTime = timings.stale;
+    expiryState.expiryTime = timings.expiry;
+
     if(timings.expiry && timings.expiry < now) {
         expiryState.expired = true;
     }
@@ -31,6 +34,7 @@ InMemoryTest.prototype._getState = function (key, callback) {
     if(timings.stale && timings.stale < now) {
         expiryState.stale = true;
     }
+
     callback(null, expiryState);
 
 }
@@ -49,9 +53,10 @@ InMemoryTest.prototype.get = function (key, options, callback) {
         if(typeof self.storage[key] !== "undefined" && !expiryState.expired) {
             state.hit = true;
             state.stale = expiryState.stale;
+            state.expiryTime = expiryState.expiryTime;
+            state.staleTime = expiryState.staleTime;
         } else {
             state.hit = false;
-
         }
 
         var data = self.storage[key];
@@ -91,6 +96,10 @@ InMemoryTest.prototype.exists = function (key, options, callback) {
             state.hit = false;
             exists = true;
         }
+
+        state.expiryTime = expiryState.expiryTime;
+        state.staleTime = expiryState.staleTime;
+
         err = null;
         var exists = state.hit;
 
@@ -135,10 +144,8 @@ InMemoryTest.prototype.lock = function (key, options, callback) {
  * @param callback
  * @returns {*}
  */
-InMemoryTest.prototype.store = function (key, value, error, options, callback) {
+InMemoryTest.prototype.store = function (key, value, error, cachePolicyResult, options, callback) {
     options = options || {};
-
-    options.cachePolicy = options.cachePolicy || {};
 
     this.storage[key] = {data: value};
 
@@ -146,15 +153,16 @@ InMemoryTest.prototype.store = function (key, value, error, options, callback) {
         this.storage[key]["error"] = error.message ? error.message : error.toString();
     }
 
-    if(options.cachePolicy) {
-        var expiryTime = options.cachePolicy.expiryTime;
-        var staleTime = options.cachePolicy.staleTime;
+    if(cachePolicyResult && cachePolicyResult.expiryTimeAbs) {
+        var expiryTime = cachePolicyResult.expiryTimeAbs;
+        var staleTime = cachePolicyResult.staleTimeAbs;
 
         if(!staleTime) {
             staleTime = expiryTime;
         }
-        var now = new Date() * 1;
-        this.timings[key] = {stale: now + (staleTime * 1000), expiry: now + (expiryTime * 1000)};
+        this.timings[key] = {stale: staleTime, expiry: expiryTime};
+    } else {
+        throw new Error("No cachePolicyResult provided");
     }
 
     if(options.unlock) {

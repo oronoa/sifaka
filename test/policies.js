@@ -38,15 +38,15 @@ suite('Policies ', function () {
                     return callback();
                 }
 
-                policy.calculate("none", i, "data", function (err, data) {
+                policy.calculate("none", i, "data", {}, {}, function (err, data) {
                     should.not.exist(err);
                     should.exist(data);
-                    data.should.have.property("staleTime");
-                    data.should.have.property("expiryTime");
+                    data.should.have.property("staleTimeAbs");
+                    data.should.have.property("expiryTimeAbs");
 
                     durations.push(i / 1000);
-                    var staleTime = data.staleTime;
-                    var expiryTime = data.expiryTime;
+                    var staleTime = data.staleTimeAbs;
+                    var expiryTime = data.expiryTimeAbs;
 
                     expiryTime.should.be.greaterThan(staleTime);
                     expiryTime.should.be.greaterThan(staleTime + (i / 1000));

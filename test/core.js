@@ -86,6 +86,9 @@ suite('Core ', function () {
             count ++;
             should.exist(meta);
 
+            meta.should.have.property("stale");
+            meta.should.have.property("staleTime");
+            meta.should.have.property("expiryTime");
 
             data.should.be.type("object");
             data.should.deepEqual(result);
