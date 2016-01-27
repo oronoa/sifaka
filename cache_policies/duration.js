@@ -12,7 +12,7 @@
  * expiryFactor: Multiple of the duration before expiry happens. Should be >= staleFactor +1
  * @constructor
  */
-function StaticCachePolicy(options) {
+function DurationCachePolicy(options) {
     this.options = options || {};
 
     this.maxStaleTime = this.options.maxStaleTime; // The absolute longest between refreshing data
@@ -20,11 +20,10 @@ function StaticCachePolicy(options) {
     this.staleFactor = this.options.staleFactor; // Ideally wait this many multiples of the duration between refreshes
 
     this.expiryFactor = this.options.expiryFactor; // Ideally, wait this many multiples of duration before expiring
-    this.maxExpiryTime = this.options.maxExpiryTime || 86400 ; // Absolute max time an item will sit in the cache (unrefreshed before it is removed)
+    this.maxExpiryTime = this.options.maxExpiryTime || 86400; // Absolute max time an item will sit in the cache (unrefreshed before it is removed)
     this.minExpiryTime = this.options.minExpiryTime || 0; // Absolute minimum amount of time in seconds the item will remain in the cache
 
-
-    if(this.expiryFactor < 2){
+    if(this.expiryFactor < 2) {
         throw new Error("You must set the expiry factor higher than the stale factor +1");
     }
 
@@ -37,30 +36,43 @@ function StaticCachePolicy(options) {
     }
 }
 
-StaticCachePolicy.prototype.calculate = function (key, durationMS, data, callback) {
-
+DurationCachePolicy.prototype.calculate = function (key, durationMS, data, extra, state, callback) {
     var durationSeconds = durationMS / 1000;
-    var staleTime, expiryTime;
 
-    staleTime = durationSeconds * this.staleFactor; // Baseline
-    if(staleTime < this.minStaleTime){
-        staleTime = this.minStaleTime;
+    var minStaleTime = this.minStaleTime;
+    var minExpiryTime = this.minExpiryTime;
+    var staleFactor = this.staleFactor;
+    var maxStaleTime = this.maxStaleTime;
+    var expiryFactor = this.expiryFactor;
+    var maxExpiryTime = this.maxExpiryTime;
+
+    var stale, expiry;
+
+    // When overriding, you may wish to alter some of the above factors and min/maximums based on the values of data and extra
+
+    stale = durationSeconds * staleFactor; // Baseline
+
+    if(stale < minStaleTime) {
+        stale = minStaleTime;
     }
 
-    if(staleTime > this.maxStaleTime) {
-        staleTime = this.maxStaleTime;
+    if(stale > maxStaleTime) {
+        stale = maxStaleTime;
     }
 
     // Wait the maximum of the minExpiry time, the stale time + a fixed multiple of the duration, or the duration x the expiry factor
-    expiryTime = Math.max(this.minExpiryTime, staleTime + (5 * durationSeconds), durationSeconds * this.expiryFactor);
-
-    if(expiryTime > this.maxExpiryTime){
-        expiryTime = this.maxExpiryTime;
+    expiry = Math.max(minExpiryTime, stale + (5 * durationSeconds), durationSeconds * expiryFactor);
+    if(expiry > maxExpiryTime) {
+        expiry = maxExpiryTime;
     }
 
-    return callback(null, {expiryTime: expiryTime, staleTime: staleTime});
+    var now = new Date() * 1;
+    var expiryAbs = now + (expiry * 1000);
+    var staleAbs = now + (stale * 1000);
+
+    return callback(null, {expiryTimeAbs: expiryAbs, staleTimeAbs: staleAbs});
 };
 
-module.exports = StaticCachePolicy;
+module.exports = DurationCachePolicy;
 
 

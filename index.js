@@ -18,6 +18,7 @@ function Sifaka(backend, options) {
     this.statsInterval = options.statsInterval || 0;
     this.serializer = options.serializer || null;
     this.stats = {hit: 0, miss: 0, work: 0};
+    this.name = options.name || null;
 
     if(this.statsInterval) {
         this.lastStats = new Date();
@@ -45,10 +46,26 @@ Sifaka.prototype.debug = function (key, message) {
     } else {
         message = key + "\t" + message;
     }
+
+    if(this.name) {
+        message = "[" + this.name + "]\t" + message;
+    }
+
     if(this.debugLogger) {
         this.debugLogger(new Date() * 1 + "\t" + message);
     }
 };
+
+Sifaka.prototype.toString = function () {
+    var message = "Sifaka";
+    if(this.name) {
+        message += " [" + this.name + "]\n";
+    }
+
+    message += require("util").inspect(this.stats);
+    return message;
+};
+
 Sifaka.prototype.exists = function (key, options, callback) {
     if(arguments.length === 2 && typeof arguments[1] === "function") {
         callback = options;
@@ -126,7 +143,9 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                         self._doWork(key, options, workFn, state);
                     } else {
                         self.debug(key, "WAITING FOR LOCK");
-                        self.locks[key] = self._watchLock(key); // We're already aware of this lock being held
+                        if(!self.locks[key]) {
+                            self.locks[key] = self._watchLock(key); // We're already aware of this lock being held
+                        }
                     }
                 });
             }
@@ -139,9 +158,10 @@ Sifaka.prototype._addPending = function (key, callback, options) {
     this.pendingCallbacks[key] = this.pendingCallbacks[key] || [];
     this.pendingCallbacks[key].push({options: options, cb: callback});
 };
-Sifaka.prototype._calculateCacheTimes = function (key, duration, data, options, callback) {
+Sifaka.prototype._calculateCacheTimes = function (key, duration, data, extra, state, options, callback) {
     options = options || {};
-    (options.policy || this.cachePolicy).calculate(key, duration, data, callback);
+    extra = extra || {};
+    (options.policy || this.cachePolicy).calculate(key, duration, data, extra, state, callback);
 };
 Sifaka.prototype._checkForResult = function (key) {
     var self = this;
@@ -163,10 +183,12 @@ Sifaka.prototype._checkForResult = function (key) {
         } else {
             self.lockCheckCounts[key] += 1;
             var nextInterval = self.lockCheckInterval + (self.lockCheckCounts[key] * self.lockCheckBackoff);
-            self.locks[key] = setTimeout(function () {
-                self._checkForResult(key)
-            }, nextInterval);
-            self.debug(key, "RESULT CHECK: MISS - CHECKING AGAIN IN " + nextInterval + "ms");
+            if(!self.locks[key] || self.locks[key]._called) {
+                self.locks[key] = setTimeout(function () {
+                    self._checkForResult(key)
+                }, nextInterval);
+                self.debug(key, "RESULT CHECK: MISS - CHECKING AGAIN IN " + nextInterval + "ms");
+            }
         }
     });
 
@@ -193,23 +215,34 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
     var self = this;
     self.debug(key, "TRIGGERING WORK");
     var start = new Date();
-    workFunction(function (workError, data, storedCallback) {
+    workFunction(function (workError, data, extra, storedCallback) {
+        if(arguments.length == 3 && typeof extra === "function") {
+            storedCallback = extra;
+            extra = {};
+        }
+
+        extra = extra || {};
         self.stats.work++;
         var duration = new Date() - start;
         if(workError && !workError.cache) {
-            self.debug(key, "ERROR, NOT CACHED: "+workError+" - UNLOCKING");
+            self.debug(key, "ERROR, NOT CACHED: " + workError + " - UNLOCKING");
 
             self.backend.unlock(key, {}, function () {
                 self.debug(key, "UNLOCKED AFTER WORK THAT ERRORED");
                 self._resolvePendingCallbacks(key, workError, data, true, state);
             });
         } else {
-            self._calculateCacheTimes(key, duration, data, options, function (err, cachePolicyResult) {
+            self._calculateCacheTimes(key, duration, data, extra, state, options, function (err, cachePolicyResult) {
+
                 if(!cachePolicyResult.noCache) {
+
+                    state.staleTime = cachePolicyResult.staleTimeAbs;
+                    state.expiryTime = cachePolicyResult.expiryTimeAbs;
+
                     self._serialize(data, function (err, serializedData) {
                         self.debug(key, "STORING AND UNLOCKING....");
-                        self.backend.store(key, serializedData, workError, {
-                            unlock: true, cachePolicy: cachePolicyResult
+                        self.backend.store(key, serializedData, workError, cachePolicyResult, {
+                            unlock: true
                         }, function (storedError, storedResult) {
                             self._resolvePendingCallbacks(key, workError, data, true, state);
                             if(storedCallback) {
@@ -218,7 +251,7 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
                         });
                     });
                 } else {
-                    self.debug(key, "UNLOCKING");
+                    self.debug(key, "UNLOCKING - NOCACHE FROM POLICY");
                     self.backend.unlock(key, options, function () {
                         self._resolvePendingCallbacks(key, workError, data, true, state);
                     });
@@ -274,9 +307,14 @@ Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, didWork, s
 Sifaka.prototype._watchLock = function (key) {
     var self = this;
     self.lockCheckCounts[key] = 0;
-    return setTimeout(function () {
-        self._checkForResult(key)
-    }, self.options.initialLockCheckDelay);
+
+    if(!self.locks[key] || self.locks[key]._called) {
+        return setTimeout(function () {
+            self._checkForResult(key)
+        }, self.options.initialLockCheckDelay);
+    } else {
+        return self.locks[key];
+    }
 };
 module.exports = {
     Sifaka: Sifaka,

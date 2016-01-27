@@ -17,9 +17,13 @@ module.exports = function (DEBUG) {
                 should.not.exist(err);
                 should.exist(data);
                 data.should.equal("12345asdf");
+                meta.should.have.property("stale");
+                meta.should.have.property("staleTime");
                 done();
             });
-        }, 'should correctly return a positive exists call': function (backend, done) {
+        },
+
+         'should correctly return a positive exists call': function (backend, done) {
             should.exist(Sifaka);
             var options = {debug: DEBUG};
             var cache = new Sifaka(backend, options)
@@ -33,9 +37,13 @@ module.exports = function (DEBUG) {
                 should.not.exist(err);
                 should.exist(data);
                 data.should.equal("12345asdf");
+                meta.should.have.property("stale");
+                meta.should.have.property("staleTime");
                 cache.exists("abc", {}, function (err, exists, meta) {
                     should.exist(meta)
                     meta.hit.should.equal(true);
+                    meta.should.have.property("stale");
+                    meta.should.have.property("staleTime");
 
                     exists.should.equal(true);
                     done();
@@ -124,6 +132,8 @@ module.exports = function (DEBUG) {
                 if(completionCount < 3) {
                     meta.hit.should.equal(false, "Completion " + completionCount + " should have been a miss, but registered as a hit.");
                     meta.should.have.property("pending", true);
+                    meta.should.have.property("stale");
+                    meta.should.have.property("staleTime");
                     should.exist(data);
                     data.should.equal(returnValue);
                 }
@@ -131,6 +141,8 @@ module.exports = function (DEBUG) {
                 if(completionCount == 3) {
                     callCount.should.equal(1);
                     meta.should.not.have.property("pending");
+                    meta.should.have.property("stale");
+                    meta.should.have.property("staleTime");
                     meta.hit.should.equal(true);
                     should.not.exist(data);
                     done();
@@ -204,7 +216,12 @@ module.exports = function (DEBUG) {
         },
 
         'should resolve callbacks on a lock held elsewhere': function (backend, done) {
+            this.timeout(5000);
             should.exist(Sifaka);
+
+            var CachePolicy = require("../../cache_policies/static");
+            var policy = new CachePolicy({expiryTime: 100, staleTime: 10}); // Set to remove item after 100s, recalculate every 1s
+
             var options = {debug: DEBUG, initialLockCheckDelay: 50, lockCheckInterval: 200, lockCheckBackoff: 0};
             var cache = new Sifaka(backend, options)
             should.exist(cache);
@@ -248,7 +265,9 @@ module.exports = function (DEBUG) {
                         backend.locks.should.have.property(key, "someOtherValue");
                     }
                     setTimeout(function () {
-                        backend.store(key, returnValue, null, {unlock: true}, function () {
+                        policy.calculate("abc", 10, "fasd", {},{}, function (err, cp) {
+                            backend.store(key, returnValue, null, cp, {unlock: true}, function () {
+                            });
                         });
                     }, 1000);
                 });

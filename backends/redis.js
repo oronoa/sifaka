@@ -15,25 +15,27 @@ function Redis(options) {
     this.lockExpiryTime = options.lockExpiryTime || LOCK_EXPIRY_TIME;
     this.client = options.client;
     this.namespace = (options.namespace ? options.namespace + ':' : '');
-    this.cachePolicy = options.cachePolicy || {expiryTime: 3600, staleTime: 1800};
     this.lockID = (Math.random() * 1E12).toString(36);
+    this.binary = options.binary || null;
 }
 
-Redis.prototype._getState = function (key, callback) {
-    var expiryState = {expired: false, stale: false};
-    var timings = this.timings[key] || {};
-    var now = new Date();
-
-    if(timings.expiry && timings.expiry < now) {
-        expiryState.expired = true;
-    }
-
-    if(timings.stale && timings.stale < now) {
-        expiryState.stale = true;
-    }
-    callback(null, expiryState);
-
-}
+//Redis.prototype._getState = function (key, callback) {
+//    var expiryState = {expired: false, stale: false};
+//    var timings = this.timings[key] || {};
+//    var now = new Date();
+//
+//    if(timings.expiry && timings.expiry < now) {
+//        expiryState.expired = true;
+//    }
+//    expiryState.expiryTime = timings.expiry;
+//
+//    if(timings.stale && timings.stale < now) {
+//        expiryState.stale = true;
+//    }
+//    expiryState.staleTime = timings.stale;
+//
+//    callback(null, expiryState);
+//}
 
 Redis.prototype._decodeData = function (binary, data, options) {
     var result = {};
@@ -82,10 +84,12 @@ Redis.prototype._getState = function (data, options, callback) {
     if(data.expiry && data.expiry < now) {
         state.expired = true;
     }
+    state.expiryTime = data.expiry;
 
     if(data.stale && data.stale < now) {
         state.stale = true;
     }
+    state.staleTime = data.stale;
 
     if(data.lock) {
         state.locked = true;
@@ -125,7 +129,10 @@ Redis.prototype._getPipeline = function (key, metaOnly) {
 
 Redis.prototype.get = function (key, options, callback) {
     var self = this;
-    var binary = options.binary || false;
+    var binary = self.binary;
+    if(typeof options.binary !== 'undefined') {
+        binary = options.binary;
+    }
     var metaOnly = options.metaOnly || null;
 
     var multi = self._getPipeline(key, metaOnly)
@@ -189,18 +196,17 @@ Redis.prototype.unlock = function (key, options, callback) {
  * @param callback
  * @returns {*}
  */
-Redis.prototype.store = function (key, value, error, options, callback) {
+Redis.prototype.store = function (key, value, error, cachePolicyResult, options, callback) {
     var self = this;
     options = options || {};
-    options.cachePolicy = options.cachePolicy || null;
 
-    var cachePolicy = options.cachePolicy || self.cachePolicy;
-    var expiryTimeSeconds = cachePolicy.expiryTime;
-    var staleTimeSeconds = cachePolicy.staleTime;
+    if(!cachePolicyResult && !cachePolicyResult.expiryTimeAbs) {
+        throw new Error("No cachePolicyResult provided");
+    }
 
-    var now = new Date() * 1;
-    var expiryAbs = now + (expiryTimeSeconds * 1000);
-    var staleAbs = now + (staleTimeSeconds * 1000);
+    var expiryAbs = cachePolicyResult.expiryTimeAbs;
+    var expiryTimeSeconds = (expiryAbs - (new Date() * 1)) / 1000;
+    var staleAbs = cachePolicyResult.staleTimeAbs;
 
     if(!staleAbs) {
         staleAbs = expiryAbs
