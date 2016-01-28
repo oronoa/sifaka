@@ -30,11 +30,11 @@ suite('InMemoryTest Backend', function () {
             status.should.have.property("locked", false);
             status.should.have.property("ownLock", false);
 
-            policy.calculate("abc", 10, "fasd", {},{}, function (err, cp) {
+            policy.calculate("abc", 10, "fasd", {}, {}, function (err, cp) {
                 // Now set the data in the cache
-                b.store("abc", 123, null,  cp, {}, function (err, success) {
+                b.store("abc", 123, {}, null, cp, {}, function (err, success) {
                     // Try a get again, this time claiming the global lock
-                    b.get("abc", {}, function (err, data, status) {
+                    b.get("abc", {}, function (err, data, status, extra) {
                         should.exist(status);
                         status.should.have.property("hit", true);
                         status.should.have.property("locked", false);

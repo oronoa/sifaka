@@ -93,7 +93,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
         self._addPending(key, callback, options);
     } else {
 
-        self.backend.get(key, options, function (err, data, state) {
+        self.backend.get(key, options, function (err, data, state, extra) {
             if(err) {
                 if(typeof err === "string") {
                     err = new Error(err);
@@ -108,10 +108,10 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                 if(options.metaOnly === "hit") {
                     // Pass "data" through here - so that we can verify in the tests that the backends are returning
                     // undefined (and hopefully not fetching data from the store)
-                    callback(err, data, state);
+                    callback(err, data, state, extra);
                 } else {
-                    self._deserialize(data, function (deserializeErr, serializedData) {
-                        callback(err || deserializeErr, serializedData, state);
+                    self._deserialize(data, extra, function (deserializeErr, deSerializedData, deSerializedExtra) {
+                        callback(err || deserializeErr, deSerializedData, state, deSerializedExtra);
                     });
                 }
 
@@ -166,7 +166,7 @@ Sifaka.prototype._calculateCacheTimes = function (key, duration, data, extra, st
 Sifaka.prototype._checkForResult = function (key) {
     var self = this;
 
-    this.backend.get(key, {noLock: true}, function (err, data, state) {
+    this.backend.get(key, {noLock: true}, function (err, data, state, extra) {
         if(state.hit) {
             if(err) {
                 if(typeof err === "string") {
@@ -177,8 +177,8 @@ Sifaka.prototype._checkForResult = function (key) {
             self.debug(key, "RESULT CHECK: HIT");
             self.locks[key] = null;
             self.lockCheckCounts[key] = 0;
-            self._deserialize(data, function (err, serializedData) {
-                self._resolvePendingCallbacks(key, err, serializedData, false, state);
+            self._deserialize(data, extra, function (err, deSerializedData, deSerializedExtra) {
+                self._resolvePendingCallbacks(key, err, deSerializedData, deSerializedExtra, false, state);
             });
         } else {
             self.lockCheckCounts[key] += 1;
@@ -191,23 +191,22 @@ Sifaka.prototype._checkForResult = function (key) {
             }
         }
     });
-
 };
-Sifaka.prototype._serialize = function (data, callback) {
+
+Sifaka.prototype._serialize = function (data, extra, callback) {
     var serializer = this.options.serializer;
     if(serializer) {
-        serializer.serialize(data, {}, callback);
+        serializer.serialize(data, extra, {}, callback);
     } else {
-        callback(null, data);
+        callback(null, data, extra);
     }
-
 };
-Sifaka.prototype._deserialize = function (data, callback) {
+Sifaka.prototype._deserialize = function (data, extra, callback) {
     var serializer = this.options.serializer;
     if(serializer) {
-        serializer.deserialize(data, {}, callback);
+        serializer.deserialize(data, extra, {}, callback);
     } else {
-        callback(null, data);
+        callback(null, data, extra);
     }
 };
 
@@ -218,10 +217,13 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
     workFunction(function (workError, data, extra, storedCallback) {
         if(arguments.length == 3 && typeof extra === "function") {
             storedCallback = extra;
-            extra = {};
+            extra = null;
         }
 
-        extra = extra || {};
+        if(typeof extra == "undefined") {
+            extra = null;
+        }
+
         self.stats.work++;
         var duration = new Date() - start;
         if(workError && !workError.cache) {
@@ -229,7 +231,7 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
 
             self.backend.unlock(key, {}, function () {
                 self.debug(key, "UNLOCKED AFTER WORK THAT ERRORED");
-                self._resolvePendingCallbacks(key, workError, data, true, state);
+                self._resolvePendingCallbacks(key, workError, data, extra, true, state);
             });
         } else {
             self._calculateCacheTimes(key, duration, data, extra, state, options, function (err, cachePolicyResult) {
@@ -239,12 +241,12 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
                     state.staleTime = cachePolicyResult.staleTimeAbs;
                     state.expiryTime = cachePolicyResult.expiryTimeAbs;
 
-                    self._serialize(data, function (err, serializedData) {
+                    self._serialize(data, extra, function (err, serializedData, serializedExtra) {
                         self.debug(key, "STORING AND UNLOCKING....");
-                        self.backend.store(key, serializedData, workError, cachePolicyResult, {
+                        self.backend.store(key, serializedData, serializedExtra, workError, cachePolicyResult, {
                             unlock: true
                         }, function (storedError, storedResult) {
-                            self._resolvePendingCallbacks(key, workError, data, true, state);
+                            self._resolvePendingCallbacks(key, workError, data, extra, true, state);
                             if(storedCallback) {
                                 storedCallback(storedError, storedResult);
                             }
@@ -253,7 +255,7 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
                 } else {
                     self.debug(key, "UNLOCKING - NOCACHE FROM POLICY");
                     self.backend.unlock(key, options, function () {
-                        self._resolvePendingCallbacks(key, workError, data, true, state);
+                        self._resolvePendingCallbacks(key, workError, data, extra, true, state);
                     });
                 }
 
@@ -277,7 +279,7 @@ Sifaka.prototype._logStats = function () {
     this.stats = {hit: 0, miss: 0, work: 0};
     this.emit("stats", currentStats);
 };
-Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, didWork, state) {
+Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, extra, didWork, state) {
     var self = this;
     if(self.locks[key]) {
         clearTimeout(self.locks[key]);
@@ -298,9 +300,9 @@ Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, didWork, s
         var options = pending.options;
 
         if(options.metaOnly && options.metaOnly == "miss") {
-            cb(err, void 0, state);
+            cb(err, void 0, state, extra);
         } else {
-            cb(err, data, state);
+            cb(err, data, state, extra);
         }
     }
 };

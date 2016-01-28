@@ -16,14 +16,15 @@ var workFunction = function(callback){
     // Do some Stuff
     setTimeout(function(){
         // Some time later, call the callback, with any errors and result data
-        callback(null, {name: "bob", value: 12345});
+        // An object of extra data can be stored alongside the main payload. Useful if e.g. the main payload needs serializing in a particular way (or is binary)
+        callback(null, {name: "bob", value: 12345}, {myExtraData: 42});
     }, 10000);
 };
 
 
-cache.get("myCacheKey", workFunction, {}, function(err, data){
+cache.get("myCacheKey", workFunction, {}, function(err, data, meta, extra){
     // The first response will take ~ 10s
-    cache.get("myCacheKey", workFunction, {}, function(err, data){
+    cache.get("myCacheKey", workFunction, {}, function(err, data, meta, extra){
         // This response should be instantaneous
     });
 });

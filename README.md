@@ -20,7 +20,8 @@ There are currently two cache policies available:
 ## Methods
 
 #### `sifaka.get(key,workFunction,[options], callback)`
-Try to retrieve an item from the cache. If it is not there, either wait for another cache client to do the work (if it is already underway) or do the work locally. The value will then be returned via `callback(err, data, meta)`.
+Try to retrieve an item from the cache. If it is not there, either wait for another cache client to do the work (if it is already underway) or do the work locally. The value will then be returned via `callback(err, data, meta, extra)`.
+The workFunction should `callback(err, data, extra)`, where `extra` is an optional object to store alongside the data. 
 
 
 ##### Options Values

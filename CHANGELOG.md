@@ -8,6 +8,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+
+## [0.5.0] - 2016-01-28
+
+### Changed
+- Save and propagate the "extra" data returned from the workFunction. Changed signatures on: workFunctions, serializers, .get callback, backends
+
 ## [0.4.0] - 2016-01-27
 
 ### Added
