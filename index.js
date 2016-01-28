@@ -98,7 +98,9 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                 if(typeof err === "string") {
                     err = new Error(err);
                 }
-                err.cached = true;
+                if(typeof err.cached === 'undefined') {
+                    err.cached = true;
+                }
             }
 
             if(state.hit === true) {
@@ -137,17 +139,26 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                     self._addPending(key, callback, options);
                 }
                 self.debug(key, "CACHE MISS");
-                self.backend.lock(key, null, function (err, acquired) {
-                    if(acquired === true) {
-                        self.debug(key, "GOT LOCK");
+
+                if(err && err.cacheUnavailable === true) { // Failed to get, so lets try to do the work once, locally
+                    if(!self.locks[key] || self.locks[key]._called) {
+                        self.locks[key] = self._watchLock(key); // We're already aware of this lock being held
+                        self.debug(key, "UNABLE TO READ CACHE - DOING WORK");
                         self._doWork(key, options, workFn, state);
-                    } else {
-                        self.debug(key, "WAITING FOR LOCK");
-                        if(!self.locks[key]) {
-                            self.locks[key] = self._watchLock(key); // We're already aware of this lock being held
-                        }
                     }
-                });
+                } else {
+                    self.backend.lock(key, null, function (err, acquired) {
+                        if(acquired === true) {
+                            self.debug(key, "GOT LOCK");
+                            self._doWork(key, options, workFn, state);
+                        } else {
+                            self.debug(key, "WAITING FOR LOCK");
+                            if(!self.locks[key] || self.locks[key]._called) {
+                                self.locks[key] = self._watchLock(key); // We're already aware of this lock being held
+                            }
+                        }
+                    });
+                }
             }
         });
     }

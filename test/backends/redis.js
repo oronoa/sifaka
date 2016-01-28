@@ -17,14 +17,19 @@ suite('Redis Backend', function () {
     setup(function (done) {
         var host = "localhost";
         client = redis.createClient({host: host, return_buffers: true, prefix: "sifaka-test:"});
+        client.on("error", function(e){
+            if(e.code == "ECONNREFUSED"){
+               // throw new Error("No redis server available at " + host);
+            }
+        });
         var multi = client.multi();
         client.del("test:data:abc");
         client.del("test:lock:abc");
         multi.exec(function (err, data) {
+            done();
             if(err) {
                 throw err;
             }
-            done();
         });
     });
 

@@ -12,6 +12,7 @@ function InMemoryTest(options) {
     this.locks = {};
     this.lockID = (Math.random() * 1E12).toString(36);
     this.timings = {};
+    this.operationsFail = false;
 }
 InMemoryTest.prototype.clear = function (callback) {
     this.locks = {};
@@ -41,6 +42,13 @@ InMemoryTest.prototype._getState = function (key, callback) {
 InMemoryTest.prototype.get = function (key, options, callback) {
     var state = {locked: false, ownLock: false, stale: false, hit: false};
     var self = this;
+
+    if(this.operationsFail) { // Allow operations to fail for testing
+        var error = new Error("Cache Unavailable");
+        error.cacheUnavailable = true;
+        return callback(error, null, state);
+    }
+
     this._getState(key, function (err, expiryState) {
 
         // Figure out lock state
@@ -82,6 +90,14 @@ InMemoryTest.prototype.get = function (key, options, callback) {
 InMemoryTest.prototype.exists = function (key, options, callback) {
     var state = {locked: false, ownLock: false, stale: false, hit: false};
     var self = this;
+
+    if(this.operationsFail) { // Allow operations to fail for testing
+        var error = new Error("Cache Unavailable");
+        error.cacheUnavailable = true;
+        state.cacheUnavailable = true;
+        return callback(error, null, state);
+    }
+
     this._getState(key, function (err, expiryState) {
         // Figure out lock state
         if(self.locks[key]) {
@@ -116,6 +132,13 @@ InMemoryTest.prototype.exists = function (key, options, callback) {
  * @returns {*}
  */
 InMemoryTest.prototype.unlock = function (key, options, callback) {
+
+    if(this.operationsFail) { // Allow operations to fail for testing
+        var error = new Error("Cache Unavailable");
+        error.cacheUnavailable = true;
+        return callback(error, false);
+    }
+
     this.locks[key] = null;
     return callback(null, true);
 }
@@ -128,6 +151,13 @@ InMemoryTest.prototype.unlock = function (key, options, callback) {
  * @returns {*}
  */
 InMemoryTest.prototype.lock = function (key, options, callback) {
+
+    if(this.operationsFail) { // Allow operations to fail for testing
+        var error = new Error("Cache Unavailable");
+        error.cacheUnavailable = true;
+        return callback(error, false);
+    }
+
     options = options || {};
     var acquiredLock = false;
     if(!this.locks[key]) {
@@ -147,6 +177,13 @@ InMemoryTest.prototype.lock = function (key, options, callback) {
  */
 InMemoryTest.prototype.store = function (key, value, extra, error, cachePolicyResult, options, callback) {
     options = options || {};
+
+
+    if(this.operationsFail) { // Allow operations to fail for testing
+        var error = new Error("Cache Unavailable");
+        error.cacheUnavailable = true;
+        return callback(error, false);
+    }
 
     this.storage[key] = {data: value, extra: extra};
 

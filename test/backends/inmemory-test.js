@@ -1,6 +1,8 @@
 /*global suite, test, suiteSetup, suiteTeardown, setup, Object, Array */
 
 var Backend = require("../../backends/inmemory-test");
+var Sifaka = require("../../index.js").Sifaka;
+
 var DEBUG = false;
 
 var should = require('should');
@@ -48,18 +50,94 @@ suite('InMemoryTest Backend', function () {
         });
     });
 
-    var sharedTests = require("./common_tests")(DEBUG);
-    var runTest = function (testName, tst) {
-        test(testName, function (done) {
-            var testFn = tst.bind(this);
-            var b = new Backend();
-            return testFn(b, done)
-        });
-    }
+    test('continue to work if the cache backend fails', function (done) {
+        // If the backend "goes away" (network issues or similar), we still want to try do somethign sensible and return a value if we can.
+        // If the get fails (returns an error with.cacheUnavailable = true), then add in a pending callback, and queue up requests for the same thing.
+        // Do work locally.
+        // When the backend becomes available again, carry on as normal. Mocked up using the in-memory backend
 
-    for(var testName in sharedTests) {
-        runTest(testName, sharedTests[testName]);
-    }
+        this.timeout(5000);
+
+        var b = new Backend();
+
+        var CachePolicy = require("../../cache_policies/static");
+        var policy = new CachePolicy({expiryTime: 100, staleTime: 10}); // Set to remove item after 100s, recalculate every 1s
+
+        var cache = new Sifaka(b, {policy: policy})
+        should.exist(cache);
+
+        b.operationsFail = true; // Cause ops to fail
+        var key = "abc";
+        var returnValue = "12345asdf";
+        var callCount = 0;
+        var workFunction = function (callback) {
+            callCount += 1;
+            setTimeout(function () {
+                callback(null, returnValue, {test: "a", second: "b"});
+            }, 300);
+        };
+        var completionCount = 0;
+        var complete = function (err, data, meta, extra) {
+            should.not.exist(err);
+            should.exist(data);
+            should.exist(meta);
+            should.exist(extra);
+            extra.should.be.type("object");
+            extra.should.have.property("test", "a");
+            extra.should.have.property("second", "b");
+
+            data.should.equal("12345asdf");
+            completionCount += 1;
+
+            if(completionCount == 2) { // Two original requests - should have been served from one call.
+                callCount.should.equal(1);
+                setTimeout(function () {
+                    cache.get(key, workFunction, complete);
+                }, 100);
+            }
+
+            if(completionCount == 3) {
+                // another, should be have been served by another call to work
+                callCount.should.equal(2);
+                b.storage.should.not.have.property(key);
+                b.operationsFail = false; // Fix everything
+                setTimeout(function () {
+                    cache.get(key, workFunction, complete);
+                }, 100);
+            }
+            if(completionCount == 4) {
+                setTimeout(function () {
+                    cache.get(key, workFunction, complete);
+                }, 100);
+            }
+
+            if(completionCount == 5) {
+                callCount.should.equal(3);
+                b.storage.should.have.property(key);
+                done();
+            }
+
+        }
+
+        cache.get(key, workFunction, complete);
+        setTimeout(function () {
+            cache.get(key, workFunction, complete);
+        }, 100);
+
+    });
+
+    //var sharedTests = require("./common_tests")(DEBUG);
+    //var runTest = function (testName, tst) {
+    //    test(testName, function (done) {
+    //        var testFn = tst.bind(this);
+    //        var b = new Backend();
+    //        return testFn(b, done)
+    //    });
+    //}
+    //
+    //for(var testName in sharedTests) {
+    //    runTest(testName, sharedTests[testName]);
+    //}
 
 });
 

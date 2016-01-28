@@ -8,6 +8,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+## [0.6.0] - 2016-01-28
+
+### Changed
+- Continue to function in a degraded state if the cache backend becomes unavailable (e.g. redis disconnects)
 
 ## [0.5.0] - 2016-01-28
 
