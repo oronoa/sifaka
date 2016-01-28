@@ -19,24 +19,6 @@ function Redis(options) {
     this.binary = options.binary || null;
 }
 
-//Redis.prototype._getState = function (key, callback) {
-//    var expiryState = {expired: false, stale: false};
-//    var timings = this.timings[key] || {};
-//    var now = new Date();
-//
-//    if(timings.expiry && timings.expiry < now) {
-//        expiryState.expired = true;
-//    }
-//    expiryState.expiryTime = timings.expiry;
-//
-//    if(timings.stale && timings.stale < now) {
-//        expiryState.stale = true;
-//    }
-//    expiryState.staleTime = timings.stale;
-//
-//    callback(null, expiryState);
-//}
-
 Redis.prototype._decodeData = function (binary, data, options) {
     var result = {};
 
@@ -47,6 +29,7 @@ Redis.prototype._decodeData = function (binary, data, options) {
         result.stale = data[2] ? data[2].toString() : null; // Buffer to String
         result.error = data[3] ? new Error(data[3].toString()) : void(0); // String or undefined
         result.data = void 0;
+        result.extra = void 0;
     } else {
         var hash = data[1] || {};
         result.expiry = hash.expiry ? hash.expiry.toString() : null; // Buffer to String
@@ -56,6 +39,16 @@ Redis.prototype._decodeData = function (binary, data, options) {
         } else {
             result.data = hash.data ? hash.data.toString() : void(0); // String or undefined
         }
+
+        result.extra = hash.extra ? hash.extra.toString() : void(0);
+
+        if(result.extra && result.extra[0] === "{") {
+            try {
+                result.extra = JSON.parse(result.extra);
+            } catch(e) {
+            }
+        }
+
         if(hash.error) {
             result.error = hash.error ? new Error(hash.error.toString()) : void(0); // String or undefined
         }
@@ -141,14 +134,13 @@ Redis.prototype.get = function (key, options, callback) {
         data = self._decodeData(binary, data, options);
         var state = self._getState(data, options);
 
-        return callback(data.error, data.data, state);
+        return callback(data.error, data.data, state, data.extra);
     });
 };
 
 Redis.prototype.exists = function (key, options, callback) {
     var self = this;
     var binary = options.binary || false;
-    var multi = self.client.multi();
 
     var multi = self._getPipeline(key, "hit");
 
@@ -196,7 +188,7 @@ Redis.prototype.unlock = function (key, options, callback) {
  * @param callback
  * @returns {*}
  */
-Redis.prototype.store = function (key, value, error, cachePolicyResult, options, callback) {
+Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, options, callback) {
     var self = this;
     options = options || {};
 
@@ -213,6 +205,16 @@ Redis.prototype.store = function (key, value, error, cachePolicyResult, options,
     }
     var multi = self.client.multi();
     multi.hset(self.namespace + "data:" + key, "data", value);
+    var expected = 4;
+    if(extra !== null && typeof extra !== "undefined") {
+
+        if(typeof extra == "object") {
+            extra = JSON.stringify(extra);
+        }
+
+        multi.hset(self.namespace + "data:" + key, "extra", extra);
+        expected = 5;
+    }
     if(error) {
         error = error.message ? error.message : error.toString();
         multi.hset(self.namespace + "data:" + key, "error", error);
@@ -225,7 +227,7 @@ Redis.prototype.store = function (key, value, error, cachePolicyResult, options,
 
         var succeeded = replies.reduce(function (previousValue, currentValue) {
                 return previousValue + currentValue
-            }) === 4;
+            }) === expected;
 
         if(options.unlock) {
             self.unlock(key, options, function (unlockErr, unlocked) {

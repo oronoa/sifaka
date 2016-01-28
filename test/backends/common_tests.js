@@ -1,6 +1,14 @@
 var should = require("should");
 var Sifaka = require("../../index.js").Sifaka;
 
+
+
+var errorIfCalled = function(callback){
+    callback(new Error("Should not be called"));
+}
+
+
+
 module.exports = function (DEBUG) {
     return {
         'should pass through a get to a work function': function (backend, done) {
@@ -11,19 +19,38 @@ module.exports = function (DEBUG) {
 
             var returnValue = "12345asdf";
             cache.get("abc", function (callback) {
-                callback(null, returnValue);
-            }, {}, function (err, data, meta) {
+                var extraData = {test: "a", second: "b"};
+                callback(null, returnValue, extraData);
+            }, {}, function (err, data, meta, extra) {
                 should.exist(meta);
+                should.exist(extra);
+                extra.should.be.type("object");
+                extra.should.have.property("test", "a");
+                extra.should.have.property("second", "b");
                 should.not.exist(err);
                 should.exist(data);
                 data.should.equal("12345asdf");
                 meta.should.have.property("stale");
+                meta.should.have.property("hit", false);
                 meta.should.have.property("staleTime");
-                done();
+                setTimeout(function () {
+                    cache.get("abc", function (callback) {
+                        var extraData = {test: "a", second: "b"};
+                        callback(null, returnValue, extraData);
+                    }, {}, function (err, data, meta, extra) {
+                        should.exist(meta);
+                        should.exist(extra);
+                        extra.should.be.type("object");
+                        extra.should.have.property("test", "a");
+                        extra.should.have.property("second", "b");
+                        meta.should.have.property("hit", true);
+                        done();
+                    });
+                }, 500);
             });
         },
 
-         'should correctly return a positive exists call': function (backend, done) {
+        'should correctly return a positive exists call': function (backend, done) {
             should.exist(Sifaka);
             var options = {debug: DEBUG};
             var cache = new Sifaka(backend, options)
@@ -31,7 +58,7 @@ module.exports = function (DEBUG) {
 
             var returnValue = "12345asdf";
             cache.get("abc", function (callback) {
-                callback(null, returnValue);
+                callback(null, returnValue, {test: "a", second: "b"});
             }, {}, function (err, data, meta) {
                 should.exist(meta);
                 should.not.exist(err);
@@ -76,14 +103,18 @@ module.exports = function (DEBUG) {
             var workFunction = function (callback) {
                 callCount += 1;
                 setTimeout(function () {
-                    callback(null, returnValue);
+                    callback(null, returnValue, {test: "a", second: "b"});
                 }, 1000);
             };
             var completionCount = 0;
-            var complete = function (err, data, meta) {
+            var complete = function (err, data, meta, extra) {
                 should.not.exist(err);
                 should.exist(data);
                 should.exist(meta);
+                should.exist(extra);
+                extra.should.be.type("object");
+                extra.should.have.property("test", "a");
+                extra.should.have.property("second", "b");
 
                 data.should.equal("12345asdf");
                 completionCount += 1;
@@ -114,15 +145,15 @@ module.exports = function (DEBUG) {
                 callCount += 1;
                 setTimeout(function () {
                     cache.debug("", "Finished Work")
-                    callback(null, returnValue, function (err, succeeded) {
+                    callback(null, returnValue, {test: "a", second: "b"}, function (err, succeeded) {
                         should.not.exist(err);
                         succeeded.should.equal(true);
-                        cache.get(key, workFunction, {metaOnly: "hit"}, complete);
+                        cache.get(key, errorIfCalled, {metaOnly: "hit"}, complete);
                     });
                 }, 300);
             };
             var completionCount = 0;
-            var complete = function (err, data, meta) {
+            var complete = function (err, data, meta, extra) {
                 should.not.exist(err);
 
                 should.exist(meta);
@@ -135,6 +166,10 @@ module.exports = function (DEBUG) {
                     meta.should.have.property("stale");
                     meta.should.have.property("staleTime");
                     should.exist(data);
+                    should.exist(extra);
+                    extra.should.be.type("object");
+                    extra.should.have.property("test", "a");
+                    extra.should.have.property("second", "b");
                     data.should.equal(returnValue);
                 }
 
@@ -165,15 +200,15 @@ module.exports = function (DEBUG) {
             var workFunction = function (callback) {
                 callCount += 1;
                 setTimeout(function () {
-                    callback(null, returnValue);
+                    callback(null, returnValue, {test: "a", second: "b"});
                     // Trigger the third cache call once we know we will get a hit
                     setTimeout(function () {
-                        cache.get(key, workFunction, {metaOnly: "miss"}, complete)
+                        cache.get(key, errorIfCalled, {metaOnly: "miss"}, complete)
                     }, 200);
                 }, 200);
             };
             var completionCount = 0;
-            var complete = function (err, data, meta) {
+            var complete = function (err, data, meta, extra) {
                 should.not.exist(err);
 
                 should.exist(meta);
@@ -197,6 +232,11 @@ module.exports = function (DEBUG) {
                     // Response from normal query
                     callCount.should.equal(1);
                     should.exist(data);
+
+                    should.exist(extra);
+                    extra.should.be.type("object");
+                    extra.should.have.property("test", "a");
+                    extra.should.have.property("second", "b");
                     data.should.equal(returnValue);
 
                 }
@@ -234,10 +274,14 @@ module.exports = function (DEBUG) {
                 throw new Error("Should not be called");
             };
             var completionCount = 0;
-            var complete = function (err, data, meta) {
+            var complete = function (err, data, meta, extra) {
                 should.not.exist(err);
                 should.exist(data);
                 should.exist(meta);
+                should.exist(extra);
+                extra.should.be.type("object");
+                extra.should.have.property("test", "a");
+                extra.should.have.property("second", "b");
 
                 data.should.equal("12345asdf");
                 completionCount += 1;
@@ -253,7 +297,7 @@ module.exports = function (DEBUG) {
             }
 
             // Simulate a remote lock being claimed
-            backend.get(key, {}, function (err, data, state) {
+            backend.get(key, {}, function (err, data, state, extra) {
                 state.should.have.property("hit", false);
                 state.should.have.property("ownLock", false);
                 state.should.have.property("locked", false);
@@ -265,8 +309,10 @@ module.exports = function (DEBUG) {
                         backend.locks.should.have.property(key, "someOtherValue");
                     }
                     setTimeout(function () {
-                        policy.calculate("abc", 10, "fasd", {},{}, function (err, cp) {
-                            backend.store(key, returnValue, null, cp, {unlock: true}, function () {
+                        policy.calculate("abc", 10, "fasd", {}, {}, function (err, cp) {
+                            backend.store(key, returnValue, {
+                                test: "a", second: "b"
+                            }, null, cp, {unlock: true}, function () {
                             });
                         });
                     }, 1000);
@@ -293,14 +339,18 @@ module.exports = function (DEBUG) {
             var workFunction = function (callback) {
                 callCount += 1;
                 setTimeout(function () {
-                    callback(null, returnValue);
+                    callback(null, returnValue, {test: "a", second: "b"});
                 }, 200);
             };
             var completionCount = 0;
-            var complete = function (err, data, meta) {
+            var complete = function (err, data, meta, extra) {
                 should.not.exist(err);
                 should.exist(data);
                 should.exist(meta);
+                should.exist(extra);
+                extra.should.be.type("object");
+                extra.should.have.property("test", "a");
+                extra.should.have.property("second", "b");
 
                 data.should.equal("12345asdf");
                 completionCount += 1;
@@ -336,15 +386,20 @@ module.exports = function (DEBUG) {
             var workFunction = function (callback) {
                 callCount += 1;
                 setTimeout(function () {
-                    callback(null, returnValue);
+                    callback(null, returnValue, {test: "a", second: "b"});
                 }, 200);
             };
             var completionCount = 0;
-            var complete = function (err, data, meta) {
+            var complete = function (err, data, meta, extra) {
                 should.exist(meta);
                 should.not.exist(err);
                 should.exist(data);
                 data.should.equal("12345asdf");
+
+                should.exist(extra);
+                extra.should.be.type("object");
+                extra.should.have.property("test", "a");
+                extra.should.have.property("second", "b");
                 completionCount += 1;
 
                 if(completionCount == 3) {
@@ -383,14 +438,19 @@ module.exports = function (DEBUG) {
                 var result = returnValues[callCount];
                 callCount += 1;
                 setTimeout(function () {
-                    callback(null, result);
+                    callback(null, result, {test: "a", second: "b"});
                 }, 200);
             };
             var completionCount = 0;
 
-            var complete = function (err, data) {
+            var complete = function (err, data, meta, extra) {
                 should.not.exist(err);
                 should.exist(data);
+
+                should.exist(extra);
+                extra.should.be.type("object");
+                extra.should.have.property("test", "a");
+                extra.should.have.property("second", "b");
 
                 var duration = new Date() - start;
 

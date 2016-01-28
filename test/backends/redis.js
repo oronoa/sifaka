@@ -44,7 +44,7 @@ suite('Redis Backend', function () {
 
             policy.calculate("abc", 10, "fasd", {}, {}, function (err, cp) {
                 // Now set the data in the cache
-                b.store("abc", 123, null, cp, {}, function (err, success) {
+                b.store("abc", 123,{}, null, cp, {}, function (err, success) {
                     // Try a get again, this time claiming the global lock
                     b.get("abc", {}, function (err, data, status) {
                         should.exist(status);

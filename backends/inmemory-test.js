@@ -17,7 +17,6 @@ InMemoryTest.prototype.clear = function (callback) {
     this.locks = {};
     this.timings = {};
     this.storage = {};
-
 }
 InMemoryTest.prototype._getState = function (key, callback) {
     var expiryState = {expired: false, stale: false};
@@ -66,16 +65,18 @@ InMemoryTest.prototype.get = function (key, options, callback) {
         }
 
         var value = void 0;
+        var extra = void 0;
 
         if(options.metaOnly == "hit") {
             value = void 0;
         } else {
             if(data) {
                 value = data.data;
+                extra = data.extra;
             }
         }
 
-        return callback(err, value, state);
+        return callback(err, value, state, extra);
     });
 }
 InMemoryTest.prototype.exists = function (key, options, callback) {
@@ -144,10 +145,10 @@ InMemoryTest.prototype.lock = function (key, options, callback) {
  * @param callback
  * @returns {*}
  */
-InMemoryTest.prototype.store = function (key, value, error, cachePolicyResult, options, callback) {
+InMemoryTest.prototype.store = function (key, value, extra, error, cachePolicyResult, options, callback) {
     options = options || {};
 
-    this.storage[key] = {data: value};
+    this.storage[key] = {data: value, extra: extra};
 
     if(error) {
         this.storage[key]["error"] = error.message ? error.message : error.toString();
