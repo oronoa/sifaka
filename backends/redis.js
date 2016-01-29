@@ -122,6 +122,7 @@ Redis.prototype._getPipeline = function (key, metaOnly) {
 
 Redis.prototype.get = function (key, options, callback) {
     var self = this;
+    var state;
     var binary = self.binary;
     if(typeof options.binary !== 'undefined') {
         binary = options.binary;
@@ -131,8 +132,14 @@ Redis.prototype.get = function (key, options, callback) {
     var multi = self._getPipeline(key, metaOnly)
 
     multi.exec(function (err, data) {
+        if(err) {
+            err.cached = false;
+            err.cacheUnavailable = true;
+            state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
+            return callback(err, null, state);
+        }
         data = self._decodeData(binary, data, options);
-        var state = self._getState(data, options);
+        state = self._getState(data, options);
 
         return callback(data.error, data.data, state, data.extra);
     });
@@ -145,6 +152,13 @@ Redis.prototype.exists = function (key, options, callback) {
     var multi = self._getPipeline(key, "hit");
 
     multi.exec(function (err, data) {
+        if(err) {
+            err.cached = false;
+            err.cacheUnavailable = true;
+            state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
+            return callback(err, false);
+        }
+
         data = self._decodeData(binary, data, options);
         var state = self._getState(data, options);
 
@@ -162,6 +176,13 @@ Redis.prototype.exists = function (key, options, callback) {
 Redis.prototype.lock = function (key, options, callback) {
     // Simple lock from http://redis.io/topics/distlock
     this.client.set(this.namespace + "lock:" + key, this.lockID, "NX", "EX", (this.lockTime || 60), function (err, data) {
+
+        if(err) {
+            err.cached = false;
+            err.cacheUnavailable = true;
+            return callback(err, false);
+        }
+
         var acquired = (data && data.toString() == "OK");
         return callback(null, acquired);
     });
@@ -176,6 +197,13 @@ Redis.prototype.lock = function (key, options, callback) {
  */
 Redis.prototype.unlock = function (key, options, callback) {
     this.client.eval(unlock_script, 1, this.namespace + "lock:" + key, this.lockID, function (err, data) {
+
+        if(err) {
+            err.cached = false;
+            err.cacheUnavailable = true;
+            return callback(err, false);
+        }
+
         callback(err, data === 1);
     })
 }
@@ -224,6 +252,12 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
     multi.expire(self.namespace + "data:" + key, expiryTimeSeconds);
 
     multi.exec(function (err, replies) {
+
+        if(err) {
+            err.cached = false;
+            err.cacheUnavailable = true;
+            return callback(err, false);
+        }
 
         var succeeded = replies.reduce(function (previousValue, currentValue) {
                 return previousValue + currentValue
