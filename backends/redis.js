@@ -225,7 +225,7 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
     }
 
     var expiryAbs = cachePolicyResult.expiryTimeAbs;
-    var expiryTimeSeconds = (expiryAbs - (new Date() * 1)) / 1000;
+    var expiryTimeSeconds = Math.ceil((expiryAbs - (new Date() * 1)) / 1000);
     var staleAbs = cachePolicyResult.staleTimeAbs;
 
     if(!staleAbs) {

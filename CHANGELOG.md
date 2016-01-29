@@ -8,6 +8,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+## [0.7.0] - 2016-01-29
+
+### Changed
+- Redis expire times need to be integers
+
 ## [0.6.0] - 2016-01-28
 
 ### Changed
