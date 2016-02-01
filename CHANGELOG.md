@@ -8,6 +8,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+## [0.7.1] - 2016-01-01
+
+### Changed
+- Prefer using pexpireat to avoid unnecessary calculations. Use toFixed() to avoid casting inaccuracies.
+
 ## [0.7.0] - 2016-01-29
 
 ### Changed

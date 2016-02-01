@@ -257,6 +257,11 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
                         self.backend.store(key, serializedData, serializedExtra, workError, cachePolicyResult, {
                             unlock: true
                         }, function (storedError, storedResult) {
+
+                            if(storedError || !storedResult){
+                                throw(storedError);
+                            }
+
                             self._resolvePendingCallbacks(key, workError, data, extra, true, state);
                             if(storedCallback) {
                                 storedCallback(storedError, storedResult);

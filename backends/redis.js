@@ -225,7 +225,6 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
     }
 
     var expiryAbs = cachePolicyResult.expiryTimeAbs;
-    var expiryTimeSeconds = Math.ceil((expiryAbs - (new Date() * 1)) / 1000);
     var staleAbs = cachePolicyResult.staleTimeAbs;
 
     if(!staleAbs) {
@@ -233,7 +232,6 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
     }
     var multi = self.client.multi();
     multi.hset(self.namespace + "data:" + key, "data", value);
-    var expected = 4;
     if(extra !== null && typeof extra !== "undefined") {
 
         if(typeof extra == "object") {
@@ -241,7 +239,6 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
         }
 
         multi.hset(self.namespace + "data:" + key, "extra", extra);
-        expected = 5;
     }
     if(error) {
         error = error.message ? error.message : error.toString();
@@ -249,7 +246,7 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
     }
     multi.hset(self.namespace + "data:" + key, "stale", staleAbs);
     multi.hset(self.namespace + "data:" + key, "expiry", expiryAbs);
-    multi.expire(self.namespace + "data:" + key, expiryTimeSeconds);
+    multi.pexpireat(self.namespace + "data:" + key, expiryAbs.toFixed());
 
     multi.exec(function (err, replies) {
 
@@ -259,9 +256,7 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
             return callback(err, false);
         }
 
-        var succeeded = replies.reduce(function (previousValue, currentValue) {
-                return previousValue + currentValue
-            }) === expected;
+        var succeeded = replies[replies.length-1] == 1; // Only the result of the pexpireat is significant
 
         if(options.unlock) {
             self.unlock(key, options, function (unlockErr, unlocked) {
