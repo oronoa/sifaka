@@ -8,6 +8,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+## [0.7.2] - 2016-01-01
+
+### Changed
+- Removed debug code
+
 ## [0.7.1] - 2016-01-01
 
 ### Changed
