@@ -2,7 +2,14 @@
 
 var LOCK_EXPIRY_TIME = 120; // 2 mins
 
-var unlock_script = 'if redis.call("get",KEYS[1]) == ARGV[1]\nthen\n    return redis.call("del",KEYS[1])\nelse\n    return 0\nend';
+var unlock_script = 'if redis.call("get",KEYS[1]) == ARGV[1] then\n'+
+    //'redis.call("ECHO", "DELETING " .. KEYS[1] .. " value: " .. ARGV[1] )\n' +
+    'local result = redis.call("del",KEYS[1])\n' +
+    //'redis.call("ECHO", "DELETED " .. KEYS[1] .. " value: " .. ARGV[1] .. " Result: " .. result )\n' +
+    'return result\n' +
+    'end\n' +
+    //'redis.call("ECHO", "COULD NOT UNLOCK - did not match" .. KEYS[1] .. " value: " .. ARGV[1] )\n' +
+    'return 0';
 
 /**
  * Redis Storage. Uses a single-host lock - which may or may not be suitable for your requirements.
@@ -15,7 +22,7 @@ function Redis(options) {
     this.lockExpiryTime = options.lockExpiryTime || LOCK_EXPIRY_TIME;
     this.client = options.client;
     this.namespace = (options.namespace ? options.namespace + ':' : '');
-    this.lockID = (Math.random() * 1E12).toString(36);
+    this.lockID = Math.floor((Math.random() * 1E12)).toString(36);
     this.binary = options.binary || null;
 }
 
@@ -24,35 +31,39 @@ Redis.prototype._decodeData = function (binary, data, options) {
 
     result.lock = data[0] ? data[0].toString() : null; // Buffer to String
 
-    if(data.length == 4) {
-        result.expiry = data[1] ? data[1].toString() : null; // Buffer to String
-        result.stale = data[2] ? data[2].toString() : null; // Buffer to String
-        result.error = data[3] ? new Error(data[3].toString()) : void(0); // String or undefined
-        result.data = void 0;
-        result.extra = void 0;
-    } else {
-        var hash = data[1] || {};
-        result.expiry = hash.expiry ? hash.expiry.toString() : null; // Buffer to String
-        result.stale = hash.stale ? hash.stale.toString() : null; // Buffer to String
-        if(binary) {
-            result.data = hash.data; // Buffer
-        } else {
-            result.data = hash.data ? hash.data.toString() : void(0); // String or undefined
-        }
-
-        result.extra = hash.extra ? hash.extra.toString() : void(0);
-
-        if(result.extra && result.extra[0] === "{") {
-            try {
-                result.extra = JSON.parse(result.extra);
-            } catch(e) {
+    switch(data.length) {
+        case 4:
+            result.expiry = data[1] ? data[1].toString() : null; // Buffer to String
+            result.stale = data[2] ? data[2].toString() : null; // Buffer to String
+            result.error = data[3] ? new Error(data[3].toString()) : void(0); // String or undefined
+            result.data = void 0;
+            result.extra = void 0;
+            break;
+        case 2:
+            var hash = data[1] || {};
+            result.expiry = hash.expiry ? hash.expiry.toString() : null; // Buffer to String
+            result.stale = hash.stale ? hash.stale.toString() : null; // Buffer to String
+            if(binary) {
+                result.data = hash.data; // Buffer
+            } else {
+                result.data = hash.data ? hash.data.toString() : void(0); // String or undefined
             }
-        }
 
-        if(hash.error) {
-            result.error = hash.error ? new Error(hash.error.toString()) : void(0); // String or undefined
-        }
+            result.extra = hash.extra ? hash.extra.toString() : void(0);
 
+            if(result.extra && result.extra[0] === "{") {
+                try {
+                    result.extra = JSON.parse(result.extra);
+                } catch(e) {
+                }
+            }
+
+            if(hash.error) {
+                result.error = hash.error ? new Error(hash.error.toString()) : void(0); // String or undefined
+            }
+            break;
+        default:
+            throw new Error("Unexpected data length received");
     }
 
     result.hit = result.stale && result.expiry;
@@ -129,41 +140,58 @@ Redis.prototype.get = function (key, options, callback) {
     }
     var metaOnly = options.metaOnly || null;
 
-    var multi = self._getPipeline(key, metaOnly)
+    if(self.client_available()) {
 
-    multi.exec(function (err, data) {
-        if(err) {
-            err.cached = false;
-            err.cacheUnavailable = true;
-            state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
-            return callback(err, null, state);
-        }
-        data = self._decodeData(binary, data, options);
-        state = self._getState(data, options);
+        var multi = self._getPipeline(key, metaOnly)
 
-        return callback(data.error, data.data, state, data.extra);
-    });
+        multi.exec(function (err, data) {
+            if(err) {
+                err.cached = false;
+                err.cacheUnavailable = true;
+                state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
+                return callback(err, null, state);
+            }
+            data = self._decodeData(binary, data, options);
+            state = self._getState(data, options);
+
+            return callback(data.error, data.data, state, data.extra);
+        });
+    } else {
+        var err = new Error("Redis unavailable")
+        err.cached = false;
+        err.cacheUnavailable = true;
+        state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
+        return callback(err, null, state);
+    }
 };
 
 Redis.prototype.exists = function (key, options, callback) {
     var self = this;
     var binary = options.binary || false;
 
-    var multi = self._getPipeline(key, "hit");
+    if(self.client_available()) {
+        var multi = self._getPipeline(key, "hit");
 
-    multi.exec(function (err, data) {
-        if(err) {
-            err.cached = false;
-            err.cacheUnavailable = true;
-            state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
-            return callback(err, false);
-        }
+        multi.exec(function (err, data) {
+            if(err) {
+                err.cached = false;
+                err.cacheUnavailable = true;
+                state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
+                return callback(err, false);
+            }
 
-        data = self._decodeData(binary, data, options);
-        var state = self._getState(data, options);
+            data = self._decodeData(binary, data, options);
+            var state = self._getState(data, options);
 
-        return callback(data.error, state.hit, state);
-    });
+            return callback(data.error, state.hit, state);
+        });
+    } else {
+        var err = new Error("Redis unavailable")
+        err.cached = false;
+        err.cacheUnavailable = true;
+        return callback(err, false);
+
+    }
 };
 
 /**
@@ -175,17 +203,27 @@ Redis.prototype.exists = function (key, options, callback) {
  */
 Redis.prototype.lock = function (key, options, callback) {
     // Simple lock from http://redis.io/topics/distlock
-    this.client.set(this.namespace + "lock:" + key, this.lockID, "NX", "EX", (this.lockTime || 60), function (err, data) {
+    var self = this;
+    if(self.client_available()) {
+        console.log("locking:\tlock:" + key, this.lockID)
+        this.client.set(this.namespace + "lock:" + key, self.lockID, "NX", "EX", (this.lockTime || 60), function (err, data) {
 
-        if(err) {
-            err.cached = false;
-            err.cacheUnavailable = true;
-            return callback(err, false);
-        }
+            if(err) {
+                err.cached = false;
+                err.cacheUnavailable = true;
+                return callback(err, false);
+            }
+            console.log("locked:\tlock:" + key, self.lockID)
 
-        var acquired = (data && data.toString() == "OK");
-        return callback(null, acquired);
-    });
+            var acquired = (data && data.toString() == "OK");
+            return callback(null, acquired);
+        });
+    } else {
+        var err = new Error("Redis unavailable")
+        err.cached = false;
+        err.cacheUnavailable = true;
+        return callback(err, false);
+    }
 }
 
 /**
@@ -196,17 +234,35 @@ Redis.prototype.lock = function (key, options, callback) {
  * @returns {*}
  */
 Redis.prototype.unlock = function (key, options, callback) {
-    this.client.eval(unlock_script, 1, this.namespace + "lock:" + key, this.lockID, function (err, data) {
+    var self = this;
+    if(self.client_available()) {
 
-        if(err) {
-            err.cached = false;
-            err.cacheUnavailable = true;
-            return callback(err, false);
-        }
+        console.log("unlocking\tlock:" + key, self.lockID)
+        this.client.eval(unlock_script, 1, this.namespace + "lock:" + key, self.lockID, function (err, data) {
+            console.log("unlocked\tlock:" + key, self.lockID)
+            if(err) {
+                err.cached = false;
+                err.cacheUnavailable = true;
+                return callback(err, false);
+            }
 
-        callback(err, data === 1);
-    })
+            callback(err, data === 1);
+        })
+    } else {
+        var err = new Error("Redis unavailable")
+        err.cached = false;
+        err.cacheUnavailable = true;
+        return callback(err, false);
+    }
 }
+
+Redis.prototype.client_available =  function() {
+    if(this.client && this.client.connected !== false && this.client.ready !== false){
+        return true;
+    }
+    return false;
+}
+
 
 /**
  * Store a result in the backend. Optionally unlock the distributed lock on the key.
@@ -230,43 +286,58 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
     if(!staleAbs) {
         staleAbs = expiryAbs
     }
-    var multi = self.client.multi();
-    multi.hset(self.namespace + "data:" + key, "data", value);
-    if(extra !== null && typeof extra !== "undefined") {
 
-        if(typeof extra == "object") {
-            extra = JSON.stringify(extra);
-        }
+    if(self.client_available()) {
+        var multi = self.client.multi();
+        multi.hset(self.namespace + "data:" + key, "data", value);
+        if(extra !== null && typeof extra !== "undefined") {
 
-        multi.hset(self.namespace + "data:" + key, "extra", extra);
-    }
-    if(error) {
-        error = error.message ? error.message : error.toString();
-        multi.hset(self.namespace + "data:" + key, "error", error);
-    }
-    multi.hset(self.namespace + "data:" + key, "stale", staleAbs);
-    multi.hset(self.namespace + "data:" + key, "expiry", expiryAbs);
-    multi.pexpireat(self.namespace + "data:" + key, expiryAbs.toFixed());
+            if(typeof extra == "object") {
+                extra = JSON.stringify(extra);
+            }
 
-    multi.exec(function (err, replies) {
-
-        if(err) {
-            err.cached = false;
-            err.cacheUnavailable = true;
-            return callback(err, false);
-        }
-
-        var succeeded = replies[replies.length-1] == 1; // Only the result of the pexpireat is significant
-
-        if(options.unlock) {
-            self.unlock(key, options, function (unlockErr, unlocked) {
-                callback(err || unlockErr, succeeded && unlocked);
-            });
+            multi.hset(self.namespace + "data:" + key, "extra", extra);
         } else {
-            callback(null, succeeded);
+            multi.hset(self.namespace + "data:" + key, "extra", "{}");
         }
+        if(error) {
+            error = error.message ? error.message : error.toString();
+            multi.hset(self.namespace + "data:" + key, "error", error);
+        }
+        multi.hset(self.namespace + "data:" + key, "stale", staleAbs);
+        multi.hset(self.namespace + "data:" + key, "expiry", expiryAbs);
+        multi.pexpireat(self.namespace + "data:" + key, expiryAbs.toFixed());
 
-    });
+        console.log("Storing data:" + key)
+        multi.exec(function (err, replies) {
+            console.log("Stored data:" + key + "err: " + err)
+
+
+            if(err) {
+                err.cached = false;
+                err.cacheUnavailable = true;
+                return callback(err, false);
+            }
+
+            var succeeded = replies[replies.length - 1] == 1; // Only the result of the pexpireat is significant
+
+            if(options.unlock) {
+                console.log("Unlocking inside store")
+                self.unlock(key, options, function (unlockErr, unlocked) {
+                    console.log("Unlocked inside store")
+                    callback(err || unlockErr, succeeded && unlocked);
+                });
+            } else {
+                callback(null, succeeded);
+            }
+
+        });
+    } else {
+        var err = new Error("Redis unavailable")
+        err.cached = false;
+        err.cacheUnavailable = true;
+        return callback(err, false);
+    }
 
 };
 
