@@ -63,7 +63,7 @@ suite('InMemoryTest Backend', function () {
         var CachePolicy = require("../../cache_policies/static");
         var policy = new CachePolicy({expiryTime: 100, staleTime: 10}); // Set to remove item after 100s, recalculate every 1s
 
-        var cache = new Sifaka(b, {policy: policy})
+        var cache = new Sifaka(b, {policy: policy, debug: DEBUG})
         should.exist(cache);
 
         b.operationsFail = true; // Cause ops to fail
@@ -126,18 +126,18 @@ suite('InMemoryTest Backend', function () {
 
     });
 
-    //var sharedTests = require("./common_tests")(DEBUG);
-    //var runTest = function (testName, tst) {
-    //    test(testName, function (done) {
-    //        var testFn = tst.bind(this);
-    //        var b = new Backend();
-    //        return testFn(b, done)
-    //    });
-    //}
-    //
-    //for(var testName in sharedTests) {
-    //    runTest(testName, sharedTests[testName]);
-    //}
+    var sharedTests = require("./common_tests")(DEBUG);
+    var runTest = function (testName, tst) {
+       test(testName, function (done) {
+           var testFn = tst.bind(this);
+           var b = new Backend();
+           return testFn(b, done)
+       });
+    }
+
+    for(var testName in sharedTests) {
+       runTest(testName, sharedTests[testName]);
+    }
 
 });
 

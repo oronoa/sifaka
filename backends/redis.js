@@ -24,6 +24,7 @@ function Redis(options) {
     this.namespace = (options.namespace ? options.namespace + ':' : '');
     this.lockID = Math.floor((Math.random() * 1E12)).toString(36);
     this.binary = options.binary || null;
+    this.name = "redis";
 }
 
 Redis.prototype._decodeData = function (binary, data, options) {
@@ -206,16 +207,20 @@ Redis.prototype.lock = function (key, options, callback) {
     var self = this;
     if(self.client_available()) {
         console.log("locking:\tlock:" + key, this.lockID)
-        this.client.set(this.namespace + "lock:" + key, self.lockID, "NX", "EX", (this.lockTime || 60), function (err, data) {
+        this.client.set(this.namespace + "lock:" + key, self.lockID, "NX", "EX", (this.lockExpiryTime || 60), function (err, data) {
 
             if(err) {
                 err.cached = false;
                 err.cacheUnavailable = true;
                 return callback(err, false);
             }
-            console.log("locked:\tlock:" + key, self.lockID)
 
-            var acquired = (data && data.toString() == "OK");
+            var acquired = (data && data.toString() == "OK") || false;
+            if(acquired){
+                console.log("locked:\tlock:" + key, self.lockID)
+            }else{
+                console.log("Not got lock:\tlock:" + key, self.lockID)
+            }
             return callback(null, acquired);
         });
     } else {
@@ -289,7 +294,10 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
 
     if(self.client_available()) {
         var multi = self.client.multi();
-        multi.hset(self.namespace + "data:" + key, "data", value);
+        if(value !== null && typeof value !== "undefined") {
+            multi.hset(self.namespace + "data:" + key, "data", value);
+        }
+
         if(extra !== null && typeof extra !== "undefined") {
 
             if(typeof extra == "object") {

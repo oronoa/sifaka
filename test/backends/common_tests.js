@@ -121,8 +121,10 @@ module.exports = function (DEBUG) {
 
                 if(completionCount == 2) {
                     callCount.should.equal(1);
-                    if(backend.locks) { // In-memory only
-                        backend.locks.should.have.property(key, null);
+
+                    if(backend.name == "inmemory-test") {// In-memory only
+                        backend.should.have.property("_locks");
+                        backend._locks.should.have.property(key, null);
                     }
                     done();
                 }
@@ -288,9 +290,10 @@ module.exports = function (DEBUG) {
 
                 if(completionCount == 2) {
                     callCount.should.equal(0); // We never called "our" work function
-                    cache.locks.should.have.property(key, null);
-                    if(backend.locks) { // In-memory only
-                        backend.locks.should.have.property(key, null);
+                    cache.remoteLockChecks.should.have.property(key, null);
+                    if(backend.name == "inmemory-test") {// In-memory only
+                        backend.should.have.property("_locks");
+                        backend._locks.should.have.property(key, null);
                     }
                     done();
                 }
@@ -305,8 +308,9 @@ module.exports = function (DEBUG) {
                 backend.lock(key, {lockID: "someOtherValue"}, function (err, acquired) {
                     acquired.should.equal(true);
 
-                    if(backend.locks) {// In-memory only
-                        backend.locks.should.have.property(key, "someOtherValue");
+                    if(backend.name == "inmemory-test") {// In-memory only
+                        backend.should.have.property("_locks");
+                        backend._locks.should.have.property(key, "someOtherValue");
                     }
                     setTimeout(function () {
                         policy.calculate("abc", 10, "fasd", {}, {}, function (err, cp) {
