@@ -11,15 +11,16 @@ function Sifaka(backend, options) {
     this.backend = backend;
     this.storage = {};
     this.debugLogger = (options.debug === true ? console.log : options.debug) || null;
-    this.initialLockCheckDelay = typeof options.initialLockCheckDelay !== "undefined" ? options.initialLockCheckDelay : 20;
-    this.lockCheckInterval = typeof options.lockCheckInterval !== "undefined" ? options.lockCheckInterval : 20;
-    this.lockCheckBackoff = typeof options.lockCheckBackoff !== "undefined" ? options.lockCheckBackoff : 100;
+    this.initialLockCheckDelayMs = typeof options.initialLockCheckDelayMs !== "undefined" ? options.initialLockCheckDelayMs : 20; // Wait this long before performing the first lock check
+    this.lockCheckIntervalMs = typeof options.lockCheckIntervalMs !== "undefined" ? options.lockCheckIntervalMs : 50; // After the first check, wait another (lockCheckIntervalMs + n* lockCheckBackoff)
+    this.lockCheckBackoff = typeof options.lockCheckBackoff !== "undefined" ? options.lockCheckBackoff : 50;
     this.cachePolicy = options.cachePolicy || new (require("./cache_policies/static"))();
     this.statsInterval = options.statsInterval || 0;
     this.serializer = options.serializer || null;
     this.stats = {hit: 0, miss: 0, work: 0};
     this.name = options.name || null;
-    this.lockTimeout = options.lockTimeout || 120;
+    this.lockTimeoutMs = options.lockTimeoutMs || 120 * 1000;
+    this.pendingTimeoutMs = options.pendingTimeoutMs || this.lockTimeoutMs;
 
     if(this.statsInterval) {
         this.lastStats = new Date();
@@ -34,6 +35,7 @@ function Sifaka(backend, options) {
 
     this.namespace = options.namespace || null;
     this.pendingCallbacks = {};
+    this.pendingTimeouts = {};
     this.remoteLockChecks = {};
     this.localLocks = {};
     this.lockCheckCounts = {};
@@ -188,10 +190,31 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
 };
 
 Sifaka.prototype._addPending = function (key, callback, options) {
+    var self = this;
     var pendingID = Math.floor((Math.random() * 1E12)).toString(36);
-    this.debug(key, "** PENDING ADDED: " + pendingID);
+    this.debug(key, "PENDING ADDED: " + pendingID);
     this.pendingCallbacks[key] = this.pendingCallbacks[key] || [];
+    if(!this.pendingTimeouts[key]){
+        this.pendingTimeouts[key] = setTimeout(function(){
+            self._clearPending(key);
+        }, self.pendingTimeoutMs)
+    }
     this.pendingCallbacks[key].push({options: options, cb: callback, id: pendingID});
+};
+
+/**
+ * Clear any pending requests if we hit the timeout
+ * @param key
+ * @private
+ */
+Sifaka.prototype._clearPending = function (key) {
+    if(this.pendingTimeouts[key]) {
+        var timeout = this.pendingTimeouts[key];
+        clearTimeout(timeout);
+        delete this.pendingTimeouts[key];
+        this.debug(key, "PENDING TIMED OUT");
+        this._resolvePendingCallbacks(key, new Error("Timed Out"), null,  {}, false, {});
+    }
 };
 
 Sifaka.prototype._pendingQueueExists = function (key) {
@@ -228,7 +251,7 @@ Sifaka.prototype._checkForBackendResult = function (key) {
             });
         } else {
             self.lockCheckCounts[key] += 1;
-            var nextInterval = self.lockCheckInterval + (self.lockCheckCounts[key] * self.lockCheckBackoff);
+            var nextInterval = self.lockCheckIntervalMs + (self.lockCheckCounts[key] * self.lockCheckBackoff);
                 self.remoteLockChecks[key] = setTimeout(function () {
                     self._checkForBackendResult(key)
                 }, nextInterval);
@@ -364,7 +387,7 @@ Sifaka.prototype._setLocalLock = function (key) {
     var self = this;
     this.localLocks[key] = setTimeout(function () {
         delete self.localLocks[key];
-    }, self.lockTimeout);
+    }, self.lockTimeoutMs);
 }
 
 Sifaka.prototype._removeLocalLock = function (key) {
@@ -394,7 +417,7 @@ Sifaka.prototype._addRemoteLockCheck = function (key) {
         self.lockCheckCounts[key] = 0;
         self.remoteLockChecks[key] = setTimeout(function () {
             self._checkForBackendResult(key)
-        }, self.options.initialLockCheckDelay);
+        }, self.options.initialLockCheckDelayMs);
         return;
     } else {
         return;
