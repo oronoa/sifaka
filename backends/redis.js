@@ -2,13 +2,9 @@
 
 var LOCK_EXPIRY_TIME = 120; // 2 mins
 
-var unlock_script = 'if redis.call("get",KEYS[1]) == ARGV[1] then\n'+
-    //'redis.call("ECHO", "DELETING " .. KEYS[1] .. " value: " .. ARGV[1] )\n' +
-    'local result = redis.call("del",KEYS[1])\n' +
-    //'redis.call("ECHO", "DELETED " .. KEYS[1] .. " value: " .. ARGV[1] .. " Result: " .. result )\n' +
-    'return result\n' +
-    'end\n' +
-    //'redis.call("ECHO", "COULD NOT UNLOCK - did not match" .. KEYS[1] .. " value: " .. ARGV[1] )\n' +
+var unlock_script = 'if redis.call("get",KEYS[1]) == ARGV[1] then\n' + //'redis.call("ECHO", "DELETING " .. KEYS[1] .. " value: " .. ARGV[1] )\n' +
+    'local result = redis.call("del",KEYS[1])\n' + //'redis.call("ECHO", "DELETED " .. KEYS[1] .. " value: " .. ARGV[1] .. " Result: " .. result )\n' +
+    'return result\n' + 'end\n' + //'redis.call("ECHO", "COULD NOT UNLOCK - did not match" .. KEYS[1] .. " value: " .. ARGV[1] )\n' +
     'return 0';
 
 /**
@@ -206,7 +202,6 @@ Redis.prototype.lock = function (key, options, callback) {
     // Simple lock from http://redis.io/topics/distlock
     var self = this;
     if(self.client_available()) {
-        console.log("locking:\tlock:" + key, this.lockID)
         this.client.set(this.namespace + "lock:" + key, self.lockID, "NX", "EX", (this.lockExpiryTime || 60), function (err, data) {
 
             if(err) {
@@ -216,11 +211,6 @@ Redis.prototype.lock = function (key, options, callback) {
             }
 
             var acquired = (data && data.toString() == "OK") || false;
-            if(acquired){
-                console.log("locked:\tlock:" + key, self.lockID)
-            }else{
-                console.log("Not got lock:\tlock:" + key, self.lockID)
-            }
             return callback(null, acquired);
         });
     } else {
@@ -241,10 +231,7 @@ Redis.prototype.lock = function (key, options, callback) {
 Redis.prototype.unlock = function (key, options, callback) {
     var self = this;
     if(self.client_available()) {
-
-        console.log("unlocking\tlock:" + key, self.lockID)
         this.client.eval(unlock_script, 1, this.namespace + "lock:" + key, self.lockID, function (err, data) {
-            console.log("unlocked\tlock:" + key, self.lockID)
             if(err) {
                 err.cached = false;
                 err.cacheUnavailable = true;
@@ -261,13 +248,12 @@ Redis.prototype.unlock = function (key, options, callback) {
     }
 }
 
-Redis.prototype.client_available =  function() {
-    if(this.client && this.client.connected !== false && this.client.ready !== false){
+Redis.prototype.client_available = function () {
+    if(this.client && this.client.connected !== false && this.client.ready !== false) {
         return true;
     }
     return false;
 }
-
 
 /**
  * Store a result in the backend. Optionally unlock the distributed lock on the key.
@@ -316,29 +302,21 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
         multi.hset(self.namespace + "data:" + key, "expiry", expiryAbs);
         multi.pexpireat(self.namespace + "data:" + key, expiryAbs.toFixed());
 
-        console.log("Storing data:" + key)
         multi.exec(function (err, replies) {
-            console.log("Stored data:" + key + "err: " + err)
-
-
             if(err) {
                 err.cached = false;
                 err.cacheUnavailable = true;
                 return callback(err, false);
             }
-
             var succeeded = replies[replies.length - 1] == 1; // Only the result of the pexpireat is significant
 
             if(options.unlock) {
-                console.log("Unlocking inside store")
                 self.unlock(key, options, function (unlockErr, unlocked) {
-                    console.log("Unlocked inside store")
                     callback(err || unlockErr, succeeded && unlocked);
                 });
             } else {
                 callback(null, succeeded);
             }
-
         });
     } else {
         var err = new Error("Redis unavailable")
@@ -346,7 +324,6 @@ Redis.prototype.store = function (key, value, extra, error, cachePolicyResult, o
         err.cacheUnavailable = true;
         return callback(err, false);
     }
-
 };
 
 module.exports = Redis;
