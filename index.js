@@ -229,17 +229,10 @@ Sifaka.prototype._checkForBackendResult = function (key) {
         } else {
             self.lockCheckCounts[key] += 1;
             var nextInterval = self.lockCheckInterval + (self.lockCheckCounts[key] * self.lockCheckBackoff);
-            if(self.remoteLockChecks[key]._called) {
                 self.remoteLockChecks[key] = setTimeout(function () {
                     self._checkForBackendResult(key)
                 }, nextInterval);
                 self.debug(key, "RESULT CHECK: MISS - CHECKING AGAIN IN " + nextInterval + "ms");
-            } else {
-                // Been reset?
-                
-                // FIXME?
-                //debugger;
-            }
         }
     });
 };
