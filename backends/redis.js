@@ -201,8 +201,12 @@ Redis.prototype.exists = function (key, options, callback) {
 Redis.prototype.lock = function (key, options, callback) {
     // Simple lock from http://redis.io/topics/distlock
     var self = this;
+    options = options || {};
     if(self.client_available()) {
-        this.client.set(this.namespace + "lock:" + key, self.lockID, "NX", "EX", (this.lockExpiryTime || 60), function (err, data) {
+
+        var lockID = options.lockID || self.lockID;
+
+        this.client.set(this.namespace + "lock:" + key, lockID, "NX", "EX", (this.lockExpiryTime || 60), function (err, data) {
 
             if(err) {
                 err.cached = false;

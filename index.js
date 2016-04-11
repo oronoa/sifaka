@@ -195,7 +195,7 @@ Sifaka.prototype._addPending = function (key, callback, options) {
     this.pendingCallbacks[key] = this.pendingCallbacks[key] || [];
     if(!this.pendingTimeouts[key]) {
         this.pendingTimeouts[key] = setTimeout(function () {
-            self._clearPending(key);
+            self._pendingTimedOut(key);
         }, self.pendingTimeoutMs)
     }
     this.pendingCallbacks[key].push({options: options, cb: callback, id: pendingID});
@@ -206,7 +206,7 @@ Sifaka.prototype._addPending = function (key, callback, options) {
  * @param key
  * @private
  */
-Sifaka.prototype._clearPending = function (key) {
+Sifaka.prototype._pendingTimedOut = function (key) {
     if(this.pendingTimeouts[key]) {
         var timeout = this.pendingTimeouts[key];
         clearTimeout(timeout);
