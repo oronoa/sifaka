@@ -13,7 +13,7 @@ function Sifaka(backend, options) {
     this.debugLogger = (options.debug === true ? console.log : options.debug) || null;
     this.initialLockCheckDelayMs = typeof options.initialLockCheckDelayMs !== "undefined" ? options.initialLockCheckDelayMs : 20; // Wait this long before performing the first lock check
     this.lockCheckIntervalMs = typeof options.lockCheckIntervalMs !== "undefined" ? options.lockCheckIntervalMs : 50; // After the first check, wait another (lockCheckIntervalMs + n* lockCheckBackoff)
-    this.lockCheckBackoff = typeof options.lockCheckBackoff !== "undefined" ? options.lockCheckBackoff : 50;
+    this.lockCheckBackoff = typeof options.lockCheckBackoff !== "undefined" ? options.lockCheckBackoff : 100;
     this.cachePolicy = options.cachePolicy || new (require("./cache_policies/static"))();
     this.statsInterval = options.statsInterval || 0;
     this.serializer = options.serializer || null;
@@ -38,8 +38,6 @@ function Sifaka(backend, options) {
     this.pendingTimeouts = {};
     this.remoteLockChecks = {};
     this.localLocks = {};
-    this.lockCheckCounts = {};
-
 }
 
 require("util").inherits(Sifaka, EventEmitter);
@@ -179,7 +177,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                                     self._doWork(key, options, workFn, state);
                                 } else {
                                     self.debug(key, "WAITING FOR REMOTE LOCK / WORK");
-                                    self._addRemoteLockCheck(key); // We need to poll for a result / lock expiry
+                                    self._addRemoteLockCheck(key, options, workFn, state); // We need to poll for a result / lock expiry
                                 }
                             });
                         }
@@ -195,8 +193,8 @@ Sifaka.prototype._addPending = function (key, callback, options) {
     var pendingID = Math.floor((Math.random() * 1E12)).toString(36);
     this.debug(key, "PENDING ADDED: " + pendingID);
     this.pendingCallbacks[key] = this.pendingCallbacks[key] || [];
-    if(!this.pendingTimeouts[key]){
-        this.pendingTimeouts[key] = setTimeout(function(){
+    if(!this.pendingTimeouts[key]) {
+        this.pendingTimeouts[key] = setTimeout(function () {
             self._clearPending(key);
         }, self.pendingTimeoutMs)
     }
@@ -214,7 +212,7 @@ Sifaka.prototype._clearPending = function (key) {
         clearTimeout(timeout);
         delete this.pendingTimeouts[key];
         this.debug(key, "PENDING TIMED OUT");
-        this._resolvePendingCallbacks(key, new Error("Timed Out"), null,  {}, false, {});
+        this._resolvePendingCallbacks(key, new Error("Timed Out"), null, {}, false, {});
     }
 };
 
@@ -251,12 +249,29 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                 self._resolvePendingCallbacks(key, err, deSerializedData, deSerializedExtra, false, state);
             });
         } else {
-            self.lockCheckCounts[key] += 1;
-            var nextInterval = self.lockCheckIntervalMs + (self.lockCheckCounts[key] * self.lockCheckBackoff);
-                self.remoteLockChecks[key] = setTimeout(function () {
-                    self._checkForBackendResult(key)
-                }, nextInterval);
-                self.debug(key, "RESULT CHECK: MISS - CHECKING AGAIN IN " + nextInterval + "ms");
+
+            if(state.locked == false) {
+                // Miss, and the lock has gone (e.g. client died whilst recalculating, leaving hanging lock, which then timed out)
+                return self._doWork(key, self.remoteLockChecks[key].options, self.remoteLockChecks[key].workFn, self.remoteLockChecks[key].state, function () {
+                    if(self._hasRemoteLockCheck(key)) {
+                        self._removeRemoteLockCheck(key);
+                    }
+                });
+            }else if (state.ownLock){
+                // Now we have the lock locally, we do not need to check remotely.
+                if(self._hasRemoteLockCheck(key)) {
+                    self._removeRemoteLockCheck(key);
+                }
+                return;
+            }
+
+            // Otherwise schedule another check, backing off as necessary
+            self.remoteLockChecks[key].count += 1;
+            var nextInterval = self.lockCheckIntervalMs + (self.remoteLockChecks[key].count * self.lockCheckBackoff);
+            self.remoteLockChecks[key].timeout = setTimeout(function () {
+                self._checkForBackendResult(key)
+            }, nextInterval);
+            self.debug(key, "RESULT CHECK: MISS - CHECKING AGAIN IN " + nextInterval + "ms");
         }
     });
 };
@@ -411,12 +426,12 @@ Sifaka.prototype._hasRemoteLockCheck = function (key) {
     return false;
 };
 
-Sifaka.prototype._addRemoteLockCheck = function (key) {
+Sifaka.prototype._addRemoteLockCheck = function (key, options, workFn, state) {
     var self = this;
 
     if(!self._hasRemoteLockCheck(key)) {
-        self.lockCheckCounts[key] = 0;
-        self.remoteLockChecks[key] = setTimeout(function () {
+        self.remoteLockChecks[key] = {options: options, workFn: workFn, state: state, count: 0};
+        self.remoteLockChecks[key].timeout = setTimeout(function () {
             self._checkForBackendResult(key)
         }, self.options.initialLockCheckDelayMs);
         return;
@@ -428,9 +443,9 @@ Sifaka.prototype._addRemoteLockCheck = function (key) {
 Sifaka.prototype._removeRemoteLockCheck = function (key) {
     var self = this;
     if(self.remoteLockChecks[key]) {
-        self.lockCheckCounts[key] = 0;
-        clearTimeout(self.remoteLockChecks[key]);
+        clearTimeout(self.remoteLockChecks[key].timeout);
         self.remoteLockChecks[key] = null;
+        delete self.remoteLockChecks[key];
     }
 }
 
