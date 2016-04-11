@@ -93,7 +93,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
 
     if(this._pendingQueueExists(key)) {
         // This node is already waiting for data on this key, add to the queue
-        self.debug(key, "CACHE MISS - LOCK PENDING");
+        self.debug(key, "CACHE MISS - ADDING TO PENDING");
         self._addPending(key, callback, options);
     } else {
         // Otherwise, hit the backend
@@ -127,6 +127,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                     if(!self._hasLocalLock(key)) {
                         self.backend.lock(key, null, function (err, acquired) {
                             if(acquired) {
+                                self._setLocalLock(key);
                                 self.debug(key, "GOT LOCK FOR STALE REFRESH");
                                 self._doWork(key, options, workFn, state);
                             } else {
