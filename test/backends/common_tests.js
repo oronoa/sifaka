@@ -264,7 +264,7 @@ module.exports = function (DEBUG) {
             var CachePolicy = require("../../cache_policies/static");
             var policy = new CachePolicy({expiryTime: 100, staleTime: 10}); // Set to remove item after 100s, recalculate every 1s
 
-            var options = {debug: DEBUG, initialLockCheckDelay: 50, lockCheckInterval: 200, lockCheckBackoff: 0};
+            var options = {debug: DEBUG, initialLockCheckDelayMs: 50, lockCheckIntervalMs: 200, lockCheckBackoffMs: 0};
             var cache = new Sifaka(backend, options)
             should.exist(cache);
 
@@ -290,7 +290,7 @@ module.exports = function (DEBUG) {
 
                 if(completionCount == 2) {
                     callCount.should.equal(0); // We never called "our" work function
-                    cache.remoteLockChecks.should.have.property(key, null);
+                    cache.remoteLockChecks.should.not.have.property(key);
                     if(backend.name == "inmemory-test") {// In-memory only
                         backend.should.have.property("_locks");
                         backend._locks.should.have.property(key, null);

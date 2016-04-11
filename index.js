@@ -13,7 +13,7 @@ function Sifaka(backend, options) {
     this.debugLogger = (options.debug === true ? console.log : options.debug) || null;
     this.initialLockCheckDelayMs = typeof options.initialLockCheckDelayMs !== "undefined" ? options.initialLockCheckDelayMs : 20; // Wait this long before performing the first lock check
     this.lockCheckIntervalMs = typeof options.lockCheckIntervalMs !== "undefined" ? options.lockCheckIntervalMs : 50; // After the first check, wait another (lockCheckIntervalMs + n* lockCheckBackoff)
-    this.lockCheckBackoff = typeof options.lockCheckBackoff !== "undefined" ? options.lockCheckBackoff : 100;
+    this.lockCheckBackoff = typeof options.lockCheckBackoffMs !== "undefined" ? options.lockCheckBackoffMs : 100;
     this.cachePolicy = options.cachePolicy || new (require("./cache_policies/static"))();
     this.statsInterval = options.statsInterval || 0;
     this.serializer = options.serializer || null;
