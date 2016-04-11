@@ -9,13 +9,14 @@
 function InMemoryTest(options) {
     this.options = options || {};
     this.storage = {};
-    this.locks = {};
+    this._locks = {};
     this.lockID = (Math.random() * 1E12).toString(36);
     this.timings = {};
     this.operationsFail = false;
+    this.name = "inmemory-test";
 }
 InMemoryTest.prototype.clear = function (callback) {
-    this.locks = {};
+    this._locks = {};
     this.timings = {};
     this.storage = {};
 }
@@ -52,8 +53,8 @@ InMemoryTest.prototype.get = function (key, options, callback) {
     this._getState(key, function (err, expiryState) {
 
         // Figure out lock state
-        if(self.locks[key]) {
-            state.ownLock = (self.locks[key] === self.lockID); // Someone else got to the lock if they don't match. Contrived for testing
+        if(self._locks[key]) {
+            state.ownLock = (self._locks[key] === self.lockID); // Someone else got to the lock if they don't match. Contrived for testing
             state.locked = true;
         }
 
@@ -100,8 +101,8 @@ InMemoryTest.prototype.exists = function (key, options, callback) {
 
     this._getState(key, function (err, expiryState) {
         // Figure out lock state
-        if(self.locks[key]) {
-            state.ownLock = (self.locks[key] === self.lockID); // Someone else got to the lock if they don't match. Contrived for testing
+        if(self._locks[key]) {
+            state.ownLock = (self._locks[key] === self.lockID); // Someone else got to the lock if they don't match. Contrived for testing
             state.locked = true;
         }
 
@@ -139,7 +140,7 @@ InMemoryTest.prototype.unlock = function (key, options, callback) {
         return callback(error, false);
     }
 
-    this.locks[key] = null;
+    this._locks[key] = null;
     return callback(null, true);
 }
 
@@ -160,8 +161,8 @@ InMemoryTest.prototype.lock = function (key, options, callback) {
 
     options = options || {};
     var acquiredLock = false;
-    if(!this.locks[key]) {
-        this.locks[key] = options.lockID || this.lockID; // Allow a different lock ID to be passed in. Useful for testing
+    if(!this._locks[key]) {
+        this._locks[key] = options.lockID || this.lockID; // Allow a different lock ID to be passed in. Useful for testing
         acquiredLock = true;
     }
     return callback(null, acquiredLock);

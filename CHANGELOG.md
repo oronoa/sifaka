@@ -7,13 +7,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 ### Changed
+## [0.8.0] - 2016-04-11
 
-## [0.7.2] - 2016-01-01
+### Changed
+- Redis stability improvements (check driver is ready before committing to use it)
+- Improved the workflow for checking backend-held locks and local locks. Added timeouts to local locks.
+- Refactored, minor renames on options.
+
+## [0.7.2] - 2016-02-01
 
 ### Changed
 - Removed debug code
 
-## [0.7.1] - 2016-01-01
+## [0.7.1] - 2016-02-01
 
 ### Changed
 - Prefer using pexpireat to avoid unnecessary calculations. Use toFixed() to avoid casting inaccuracies.
