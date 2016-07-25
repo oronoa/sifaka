@@ -7,6 +7,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 ### Changed
+
+
+## [0.8.1] - 2016-07-25
+
+### Changed
+- Fix to ensure local locks are cleared when a cache lookup returns an error.
+
 ## [0.8.0] - 2016-04-11
 
 ### Changed

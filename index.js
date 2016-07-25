@@ -369,6 +369,8 @@ Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, extra, did
     if(self._hasRemoteLockCheck(key)) {
         self._removeRemoteLockCheck(key);
     }
+    // Make sure the local lock is gone, even after an error
+    self._removeLocalLock(key);
 
     this.debug(key, "RESOLVING PENDING CALLBACKS");
     var pendingCallbacks = this.pendingCallbacks[key] || [];
@@ -377,7 +379,6 @@ Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, extra, did
     state.pending = true;
     while(pendingCallbacks.length) {
         var pending = pendingCallbacks.shift();
-
         this.debug(key, "RESOLVING CALLBACK: " + pending.id);
         var cb = pending.cb;
         var options = pending.options;
@@ -401,6 +402,7 @@ Sifaka.prototype._hasLocalLock = function (key) {
 
 Sifaka.prototype._setLocalLock = function (key) {
     var self = this;
+    this.debug(key, "SETTING LOCAL LOCK");
     this.localLocks[key] = setTimeout(function () {
         delete self.localLocks[key];
     }, self.lockTimeoutMs);
@@ -408,6 +410,7 @@ Sifaka.prototype._setLocalLock = function (key) {
 
 Sifaka.prototype._removeLocalLock = function (key) {
     var self = this;
+    this.debug(key, "REMOVING LOCAL LOCK");
     var lockTimeout = self.localLocks[key];
     delete self.localLocks[key];
     clearTimeout(lockTimeout);
