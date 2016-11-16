@@ -8,6 +8,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+## [0.8.2]
+
+### Changed
+ - Fix to clear the pending timeout when a list of pending callbacks is resolved
 
 ## [0.8.1] - 2016-07-25
 

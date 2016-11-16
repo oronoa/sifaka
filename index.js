@@ -369,6 +369,14 @@ Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, extra, did
     if(self._hasRemoteLockCheck(key)) {
         self._removeRemoteLockCheck(key);
     }
+    
+    // Remove the timeout on the pending list
+    var timeout = this.pendingTimeouts[key];
+    if(timeout) {
+       clearTimeout(timeout);
+       delete this.pendingTimeouts[key];
+    }
+    
     // Make sure the local lock is gone, even after an error
     self._removeLocalLock(key);
 
