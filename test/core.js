@@ -109,6 +109,47 @@ suite('Core ', function () {
         }, 75);
 
     });
+    test('should deal with serialization errors', function (done) {
+        var Sifaka = require("../index.js").Sifaka;
+        should.exist(Sifaka);
+        var Backend = require("../backends/inmemory-test");
+        var serializer = require("../serializers/test/error").error();
+        var options = {statsInterval: 75, serializer: serializer};
+        var backend = new Backend()
+        var cache = new Sifaka(backend, options);
+        var key = "abc";
+        var stored = 0;
+        var result = {somekey: "a", anotherKey: 7, aDate: new Date("2016-01-01")};
+        var workCounter = 0;
+        var workFunction = function (callback) {
+            workCounter +=1;
+            setTimeout(function(){callback(null, result, function(){
+                stored += 1;
+            })}, 50);
+        };
+        var count = 0;
+        var complete = function(err, data, meta){
+            count ++;
+            
+            should.exist(err);
+            should.exist(meta);
+
+            data.should.be.type("object"); // We still want the work to have occurred
+            data.should.deepEqual(result);
+            if(count == 3) {
+                backend.storage.should.not.have.property(key);
+                workCounter.should.equal(2);
+                done();
+            }
+        }
+
+        cache.get(key, workFunction, {}, complete);
+        cache.get(key, workFunction, {}, complete);
+        setTimeout(function () {
+            cache.get(key, workFunction, {}, complete);
+        }, 75);
+
+    });
 });
 
 

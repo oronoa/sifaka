@@ -125,6 +125,97 @@ suite('InMemoryTest Backend', function () {
         }, 100);
 
     });
+    
+    
+    
+   test('not fail if a remote lock expires', function (done) {
+        // If a remote worker obtains the lock, then dies without returning data, the other workers will check the remote lock
+        // Until it times out. When this happens, a worker will get the lock
+
+        this.timeout(5000);
+
+        var b = new Backend();
+
+        var CachePolicy = require("../../cache_policies/static");
+        var policy = new CachePolicy({expiryTime: 100, staleTime: 10}); // Set to remove item after 100s, recalculate every 1s
+        var cache = new Sifaka(b, {policy: policy, debug: DEBUG})
+        should.exist(cache);
+
+        var key = "abc";
+        var returnValue = "12345asdf";
+        var callCount = 0;
+      
+        var workFunction = function (callback) {
+            callCount += 1;
+            setTimeout(function () {
+                callback(null, returnValue, {test: "a", second: "b"});
+            }, 300);
+        };
+        var completionCount = 0;
+        var complete = function (err, data, meta, extra) {
+            should.not.exist(err);
+            should.exist(data);
+            should.exist(meta);
+            should.exist(extra);
+            extra.should.be.type("object");
+            extra.should.have.property("test", "a");
+            extra.should.have.property("second", "b");
+
+            data.should.equal("12345asdf");
+            completionCount += 1;
+
+            if(completionCount == 2) { // Two original requests - should have been served from one call.
+                callCount.should.equal(1);
+                setTimeout(function () {
+                    cache.get(key, workFunction, complete);
+                }, 100);
+            }
+
+            if(completionCount == 3) {
+                // another, should be have been served by another call to work
+                callCount.should.equal(1);
+                setTimeout(function () {
+                    cache.get(key, workFunction, complete);
+                }, 100);
+            }
+            if(completionCount == 4) {
+                setTimeout(function () {
+                    cache.get(key, workFunction, complete);
+                }, 100);
+            }
+
+            if(completionCount == 5) {
+                callCount.should.equal(1);
+                b.storage.should.have.property(key);
+                done();
+            }
+
+        }
+       
+        
+        // Set the remote lock as something else
+        b._locks[key] = "SOMEREMOTELOCK";
+        b.storage[key] = {
+           "data": "12345asdf",
+           "extra": {
+             "test": "a",
+             "second": "b"
+           }
+         }
+         b.timings[key] = {expiry: new Date() - 1000, stale: new Date()-30000}
+       
+       cache.get(key, workFunction, complete); // Will hit the remote lock, will wait for it to expire
+       cache.get(key, workFunction, complete); // Will hit the remote lock, will wait for it to expire
+       
+       setTimeout(function(){
+           cache.get(key, workFunction, complete); // Will hit the remote lock, will wait for it to expire
+       }, 150);
+       
+       setTimeout(function(){
+           cache.debug(key, "Remote Lock Removed")
+           delete b._locks[key];
+       }, 300);
+    });
 
     var sharedTests = require("./common_tests")(DEBUG);
     var runTest = function (testName, tst) {

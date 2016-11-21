@@ -129,8 +129,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                                 self.debug(key, "GOT LOCK FOR STALE REFRESH");
                                 self._doWork(key, options, workFn, state);
                             } else {
-                                // TODO  - add in remote watch?
-                                self.debug(key, "LOCK DENIED FOR STALE REFRESH");
+                                self.debug(key, "LOCK DENIED FOR STALE REFRESH"); // Another worker is doing the refresh
                             }
                         });
                     } else {
@@ -198,7 +197,7 @@ Sifaka.prototype._addPending = function (key, callback, options) {
             self._pendingTimedOut(key);
         }, self.pendingTimeoutMs)
     }
-    this.pendingCallbacks[key].push({options: options, cb: callback, id: pendingID});
+    this.pendingCallbacks[key].push({options: options, cb: callback, id: pendingID, dt: new Date()});
 };
 
 /**
@@ -233,6 +232,11 @@ Sifaka.prototype._checkForBackendResult = function (key) {
 
     this.backend.get(key, {noLock: true}, function (err, data, state, extra) {
         if(state.hit) {
+            
+            if(self._hasRemoteLockCheck(key)) {
+                self._removeRemoteLockCheck(key);
+            }
+            
             if(err) {
                 if(typeof err === "string") {
                     err = new Error(err);
@@ -240,11 +244,7 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                 err.cached = true;
             }
             self.debug(key, "RESULT CHECK: HIT");
-
-            if(self._hasRemoteLockCheck(key)) {
-                self._removeRemoteLockCheck(key);
-            }
-
+            
             self._deserialize(data, extra, function (err, deSerializedData, deSerializedExtra) {
                 self._resolvePendingCallbacks(key, err, deSerializedData, deSerializedExtra, false, state);
             });
@@ -252,12 +252,21 @@ Sifaka.prototype._checkForBackendResult = function (key) {
 
             if(state.locked == false) {
                 // Miss, and the lock has gone (e.g. client died whilst recalculating, leaving hanging lock, which then timed out)
-                return self._doWork(key, self.remoteLockChecks[key].options, self.remoteLockChecks[key].workFn, self.remoteLockChecks[key].state, function () {
-                    if(self._hasRemoteLockCheck(key)) {
-                        self._removeRemoteLockCheck(key);
+                self.backend.lock(key, null, function (err, acquired) {
+                    if(acquired) {
+                        self._setLocalLock(key);
+                        self.debug(key, "GOT LOCK AFTER REMOTE LOCK");
+                        return self._doWork(key, self.remoteLockChecks[key].options, self.remoteLockChecks[key].workFn, self.remoteLockChecks[key].state, function () {
+                            if(self._hasRemoteLockCheck(key)) {
+                                self._removeRemoteLockCheck(key);
+                            }
+                        });
+                    } else {
+                        self.debug(key, "LOCK NOT ACQUIRED AFTER REMOTe LOCK CHECK - WAITING AGAIN");
                     }
                 });
-            }else if (state.ownLock){
+                
+            } else if(state.ownLock) {
                 // Now we have the lock locally, we do not need to check remotely.
                 if(self._hasRemoteLockCheck(key)) {
                     self._removeRemoteLockCheck(key);
@@ -325,16 +334,25 @@ Sifaka.prototype._doWork = function (key, options, workFunction, state, callback
                     state.expiryTime = cachePolicyResult.expiryTimeAbs;
 
                     self._serialize(data, extra, function (err, serializedData, serializedExtra) {
-                        self.debug(key, "STORING AND UNLOCKING....");
-                        self.backend.store(key, serializedData, serializedExtra, workError, cachePolicyResult, {
-                            unlock: true
-                        }, function (storedError, storedResult) {
-                            self._removeLocalLock(key);
-                            self._resolvePendingCallbacks(key, workError, data, extra, true, state);
-                            if(storedCallback) {
-                                storedCallback(storedError, storedResult);
-                            }
-                        });
+                        if(err) {
+                            // We've done the work, but cannot serialize it / save.
+                            self.debug(key, "SERIALIZATION ERROR. NOT STORING: " + err);
+                            return self.backend.unlock(key, {}, function () {
+                                self.debug(key, "UNLOCKED AFTER SERIALIZATION ERROR");
+                                self._resolvePendingCallbacks(key, err, data, extra, true, state);
+                            });
+                        } else {
+                            self.debug(key, "STORING AND UNLOCKING....");
+                            self.backend.store(key, serializedData, serializedExtra, workError, cachePolicyResult, {
+                                unlock: true
+                            }, function (storedError, storedResult) {
+                                self._removeLocalLock(key);
+                                self._resolvePendingCallbacks(key, workError, data, extra, true, state);
+                                if(storedCallback) {
+                                    storedCallback(storedError, storedResult);
+                                }
+                            });
+                        }
                     });
                 } else {
                     self.debug(key, "UNLOCKING - NOCACHE FROM POLICY");
@@ -373,8 +391,8 @@ Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, extra, did
     // Remove the timeout on the pending list
     var timeout = this.pendingTimeouts[key];
     if(timeout) {
-       clearTimeout(timeout);
-       delete this.pendingTimeouts[key];
+        clearTimeout(timeout);
+        delete this.pendingTimeouts[key];
     }
     
     // Make sure the local lock is gone, even after an error
@@ -387,7 +405,7 @@ Sifaka.prototype._resolvePendingCallbacks = function (key, err, data, extra, did
     state.pending = true;
     while(pendingCallbacks.length) {
         var pending = pendingCallbacks.shift();
-        this.debug(key, "RESOLVING CALLBACK: " + pending.id);
+        this.debug(key, "RESOLVING CALLBACK: " + pending.id + " (" + (new Date() - pending.dt) / 1000 + "s)");
         var cb = pending.cb;
         var options = pending.options;
 
@@ -439,7 +457,6 @@ Sifaka.prototype._hasRemoteLockCheck = function (key) {
 
 Sifaka.prototype._addRemoteLockCheck = function (key, options, workFn, state) {
     var self = this;
-
     if(!self._hasRemoteLockCheck(key)) {
         self.remoteLockChecks[key] = {options: options, workFn: workFn, state: state, count: 0};
         self.remoteLockChecks[key].timeout = setTimeout(function () {

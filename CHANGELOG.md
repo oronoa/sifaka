@@ -8,6 +8,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+
+## [0.8.3]
+
+### Added
+- Added test for remote lock timeouts
+
+### Changed
+- Handle errors in the serializers 
+
+
+
 ## [0.8.2]
 
 ### Changed
