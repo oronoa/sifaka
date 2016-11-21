@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 
+## [0.8.4]
+
+### Added
+- Added the ability to supply a backoff power to allow non-linear polling of remote locks
+
+
 ## [0.8.3]
 
 ### Added

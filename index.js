@@ -14,6 +14,7 @@ function Sifaka(backend, options) {
     this.initialLockCheckDelayMs = typeof options.initialLockCheckDelayMs !== "undefined" ? options.initialLockCheckDelayMs : 20; // Wait this long before performing the first lock check
     this.lockCheckIntervalMs = typeof options.lockCheckIntervalMs !== "undefined" ? options.lockCheckIntervalMs : 50; // After the first check, wait another (lockCheckIntervalMs + n* lockCheckBackoff)
     this.lockCheckBackoff = typeof options.lockCheckBackoffMs !== "undefined" ? options.lockCheckBackoffMs : 100;
+    this.lockCheckBackoffExponent = typeof options.lockCheckBackoffExponent !== "undefined" ? options.lockCheckBackoffExponent : 1; // Allow for an exponential backoff
     this.cachePolicy = options.cachePolicy || new (require("./cache_policies/static"))();
     this.statsInterval = options.statsInterval || 0;
     this.serializer = options.serializer || null;
@@ -275,8 +276,14 @@ Sifaka.prototype._checkForBackendResult = function (key) {
             }
 
             // Otherwise schedule another check, backing off as necessary
+            var nextInterval;
+            if(self.lockCheckBackoffExponent === 1){
+                nextInterval = self.lockCheckIntervalMs + (self.remoteLockChecks[key].count * (self.lockCheckBackoff));
+            }else{
+                var val = self.lockCheckBackoff * Math.pow(self.remoteLockChecks[key].count, self.lockCheckBackoffExponent);
+                nextInterval = self.lockCheckIntervalMs + val;
+            }
             self.remoteLockChecks[key].count += 1;
-            var nextInterval = self.lockCheckIntervalMs + (self.remoteLockChecks[key].count * self.lockCheckBackoff);
             self.remoteLockChecks[key].timeout = setTimeout(function () {
                 self._checkForBackendResult(key)
             }, nextInterval);

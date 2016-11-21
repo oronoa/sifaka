@@ -138,7 +138,12 @@ suite('InMemoryTest Backend', function () {
 
         var CachePolicy = require("../../cache_policies/static");
         var policy = new CachePolicy({expiryTime: 100, staleTime: 10}); // Set to remove item after 100s, recalculate every 1s
-        var cache = new Sifaka(b, {policy: policy, debug: DEBUG})
+        var cache = new Sifaka(b, {policy: policy, debug: DEBUG,
+            initialLockCheckDelayMs: 20,
+            lockCheckIntervalMs: 20,
+            lockCheckBackoffMs: 10,
+            lockCheckBackoffExponent: 1.6
+        })
         should.exist(cache);
 
         var key = "abc";

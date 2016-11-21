@@ -28,7 +28,7 @@ The workFunction should `callback(err, data, extra)`, where `extra` is an option
 
 ###### `options.metaOnly` - request that metadata only be returned from the backend in either a hit or miss scenario
 
-| options.metaOnly value | cache (hit\|miss) | data returned | work function called |
+| options.metaOnly value | cache (hit&#124;miss) | data returned | work function called |
 |:---:|:---:|:---:|:---:|
 | not set / null | hit | y | n |
 | not set / null | miss | y | if required |
