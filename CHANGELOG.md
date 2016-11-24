@@ -9,13 +9,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 
-## [0.8.4]
+## [0.8.5] - 2016-11-24
+
+### Changed
+- Fix flow control when a remote lock has expired.
+
+
+## [0.8.4] - 2016-11-21
 
 ### Added
 - Added the ability to supply a backoff power to allow non-linear polling of remote locks
 
 
-## [0.8.3]
+## [0.8.3] - 2016-11-21
 
 ### Added
 - Added test for remote lock timeouts
@@ -23,9 +29,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 - Handle errors in the serializers 
 
-
-
-## [0.8.2]
+## [0.8.2] - 2016-11-16
 
 ### Changed
  - Fix to clear the pending timeout when a list of pending callbacks is resolved

@@ -245,15 +245,13 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                 err.cached = true;
             }
             self.debug(key, "RESULT CHECK: HIT");
-            
             self._deserialize(data, extra, function (err, deSerializedData, deSerializedExtra) {
                 self._resolvePendingCallbacks(key, err, deSerializedData, deSerializedExtra, false, state);
             });
         } else {
-
             if(state.locked == false) {
                 // Miss, and the lock has gone (e.g. client died whilst recalculating, leaving hanging lock, which then timed out)
-                self.backend.lock(key, null, function (err, acquired) {
+                return self.backend.lock(key, null, function (err, acquired) {
                     if(acquired) {
                         self._setLocalLock(key);
                         self.debug(key, "GOT LOCK AFTER REMOTE LOCK");
@@ -263,31 +261,31 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                             }
                         });
                     } else {
-                        self.debug(key, "LOCK NOT ACQUIRED AFTER REMOTe LOCK CHECK - WAITING AGAIN");
+                        self.debug(key, "LOCK NOT ACQUIRED AFTER REMOTE LOCK CHECK - WAITING AGAIN");
                     }
                 });
-                
             } else if(state.ownLock) {
                 // Now we have the lock locally, we do not need to check remotely.
                 if(self._hasRemoteLockCheck(key)) {
                     self._removeRemoteLockCheck(key);
                 }
                 return;
+            } else {
+                // Otherwise schedule another check, backing off as necessary
+                var nextInterval;
+                if(self.lockCheckBackoffExponent === 1) {
+                    nextInterval = self.lockCheckIntervalMs + (self.remoteLockChecks[key].count * (self.lockCheckBackoff));
+                } else {
+                    var val = self.lockCheckBackoff * Math.pow(self.remoteLockChecks[key].count, self.lockCheckBackoffExponent);
+                    nextInterval = self.lockCheckIntervalMs + val;
+                }
+                self.remoteLockChecks[key].count += 1;
+                self.remoteLockChecks[key].timeout = setTimeout(function () {
+                    self._checkForBackendResult(key)
+                }, nextInterval);
+                self.debug(key, "RESULT CHECK: MISS - CHECKING AGAIN IN " + nextInterval + "ms");
+                return;
             }
-
-            // Otherwise schedule another check, backing off as necessary
-            var nextInterval;
-            if(self.lockCheckBackoffExponent === 1){
-                nextInterval = self.lockCheckIntervalMs + (self.remoteLockChecks[key].count * (self.lockCheckBackoff));
-            }else{
-                var val = self.lockCheckBackoff * Math.pow(self.remoteLockChecks[key].count, self.lockCheckBackoffExponent);
-                nextInterval = self.lockCheckIntervalMs + val;
-            }
-            self.remoteLockChecks[key].count += 1;
-            self.remoteLockChecks[key].timeout = setTimeout(function () {
-                self._checkForBackendResult(key)
-            }, nextInterval);
-            self.debug(key, "RESULT CHECK: MISS - CHECKING AGAIN IN " + nextInterval + "ms");
         }
     });
 };
