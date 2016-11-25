@@ -176,8 +176,12 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                                     self.debug(key, "GOT LOCK");
                                     self._doWork(key, options, workFn, state);
                                 } else {
-                                    self.debug(key, "WAITING FOR REMOTE LOCK / WORK");
-                                    self._addRemoteLockCheck(key, options, workFn, state); // We need to poll for a result / lock expiry
+                                    if(self._hasLocalLock(key)) { // Something local got the lock in the meantime, so no further action required
+                                        return;
+                                    }else {
+                                        self.debug(key, "WAITING FOR REMOTE LOCK / WORK");
+                                        self._addRemoteLockCheck(key, options, workFn, state); // We need to poll for a result / lock expiry
+                                    }
                                 }
                             });
                         }
@@ -255,11 +259,17 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                     if(acquired) {
                         self._setLocalLock(key);
                         self.debug(key, "GOT LOCK AFTER REMOTE LOCK");
-                        return self._doWork(key, self.remoteLockChecks[key].options, self.remoteLockChecks[key].workFn, self.remoteLockChecks[key].state, function () {
-                            if(self._hasRemoteLockCheck(key)) {
-                                self._removeRemoteLockCheck(key);
-                            }
-                        });
+                        
+                        if(self.remoteLockChecks[key] && self.remoteLockChecks[key].workFn) {
+                            return self._doWork(key, self.remoteLockChecks[key].options, self.remoteLockChecks[key].workFn, self.remoteLockChecks[key].state, function () {
+                                if(self._hasRemoteLockCheck(key)) {
+                                    self._removeRemoteLockCheck(key, "check backend result (not locked - lock acquired)");
+                                }
+                            });
+                        }else{
+                            // We were expecting the lock check to still be there. Throw with details of the last fn to remove it.
+                                throw new Error("Attempted to do Work on a removed remote lock check. NS: "+self.namespace+" key: "+ key +" Last removed by not set.");
+                        }
                     } else {
                         self.debug(key, "LOCK NOT ACQUIRED AFTER REMOTE LOCK CHECK - WAITING AGAIN");
                     }
@@ -273,6 +283,13 @@ Sifaka.prototype._checkForBackendResult = function (key) {
             } else {
                 // Otherwise schedule another check, backing off as necessary
                 var nextInterval;
+                
+                
+                if(!self.remoteLockChecks[key]){
+                    // We were expecting the lock check to still be there. Throw with details of the last fn to remove it.
+                          throw new Error("Attempted to set next lock check on a removed remote lock check. NS: "+self.namespace+" key: "+ key +"  Last removed by not set.");
+                }
+                
                 if(self.lockCheckBackoffExponent === 1) {
                     nextInterval = self.lockCheckIntervalMs + (self.remoteLockChecks[key].count * (self.lockCheckBackoff));
                 } else {

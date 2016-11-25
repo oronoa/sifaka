@@ -9,6 +9,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 
+## [0.8.9] - 2016-11-25
+
+### Changed
+- Ensure we don't have a local lock before setting checks on a remote lock.
+
 ## [0.8.5] - 2016-11-24
 
 ### Changed
