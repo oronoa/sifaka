@@ -9,6 +9,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 
+## [0.8.10] - 2016-12-28
+
+### Changed
+- Don't throw when a remote lock has been removed.
+
 ## [0.8.9] - 2016-11-25
 
 ### Changed

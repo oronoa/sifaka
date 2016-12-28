@@ -1,6 +1,6 @@
 {
   "name": "sifaka",
-  "version": "0.8.9",
+  "version": "0.8.10",
   "description": "Sifaka is a pluggable caching library with an emphasis on protecting the backend from being overloaded.",
   "main": "index.js",
   "scripts": {

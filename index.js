@@ -268,7 +268,8 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                             });
                         }else{
                             // We were expecting the lock check to still be there. Throw with details of the last fn to remove it.
-                                throw new Error("Attempted to do Work on a removed remote lock check. NS: "+self.namespace+" key: "+ key +" Last removed by not set.");
+                                self.debug(key, "ERROR - Attempted to set next lock check on a removed remote lock check. NS: "+self.namespace);
+                                return;
                         }
                     } else {
                         self.debug(key, "LOCK NOT ACQUIRED AFTER REMOTE LOCK CHECK - WAITING AGAIN");
@@ -286,8 +287,9 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                 
                 
                 if(!self.remoteLockChecks[key]){
-                    // We were expecting the lock check to still be there. Throw with details of the last fn to remove it.
-                          throw new Error("Attempted to set next lock check on a removed remote lock check. NS: "+self.namespace+" key: "+ key +"  Last removed by not set.");
+                    // The backend check has been removed elsewhere. Throwing is unlikely to be productive, as it will be unlikely to be caught.
+                    self.debug(key, "ERROR - Attempted to set next lock check on a removed remote lock check. NS: "+self.namespace);
+                    return;
                 }
                 
                 if(self.lockCheckBackoffExponent === 1) {
