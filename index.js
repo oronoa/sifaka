@@ -320,7 +320,11 @@ Sifaka.prototype._serialize = function (data, extra, callback) {
 Sifaka.prototype._deserialize = function (data, extra, callback) {
     var serializer = this.options.serializer;
     if(serializer) {
-        serializer.deserialize(data, extra, {}, callback);
+        try {
+            serializer.deserialize(data, extra, {}, callback);
+        }catch(e){
+            callback(e, null, null);
+        }
     } else {
         callback(null, data, extra);
     }

@@ -9,6 +9,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 
+## [0.8.11] - 2017-07-17
+
+### Changed
+- Catch deserialization errors
+
 ## [0.8.10] - 2016-12-28
 
 ### Changed
