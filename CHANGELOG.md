@@ -7,7 +7,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 ### Changed
+## [0.8.12] -  2017-07-27
 
+### Added
+
+Add noStale option to DurationPolicy to allow the stale behaviour to be turned off.
 
 ## [0.8.11] - 2017-07-17
 

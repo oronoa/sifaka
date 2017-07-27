@@ -14,6 +14,11 @@
  */
 function DurationCachePolicy(options) {
     this.options = options || {};
+    
+    // Set this to true to disable returning stale data. May be useful if you need to have a series of related requests return the same data
+    // e.g. to avoid first request (stale), [does work], second request (stale), [work returns], third request (fresh), fourth (fresh)
+    // This will mean that the first and second requests get held until the work returns, but this might be desirable.
+    this.noStale = this.options.noStale || false;
 
     this.maxStaleTime = this.options.maxStaleTime; // The absolute longest between refreshing data
     this.minStaleTime = this.options.minStaleTime || 0; // The absolute shortest time between refreshes
@@ -23,39 +28,41 @@ function DurationCachePolicy(options) {
     this.maxExpiryTime = this.options.maxExpiryTime || 86400; // Absolute max time an item will sit in the cache (unrefreshed before it is removed)
     this.minExpiryTime = this.options.minExpiryTime || 0; // Absolute minimum amount of time in seconds the item will remain in the cache
 
-    if(this.expiryFactor < 2) {
-        throw new Error("You must set the expiry factor higher than the stale factor +1");
-    }
-
-    if(!this.staleFactor) {
-        throw new Error("You must provide an options.staleFactor value.");
-    }
-
-    if(this.staleTime > this.expiryTime) {
-        throw new Error("The staleTime should be <= the expiryTime");
+    if(!this.noStale) {
+        if(this.expiryFactor < 2) {
+            throw new Error("You must set the expiry factor higher than the stale factor +1");
+        }
+    
+        if(!this.staleFactor) {
+            throw new Error("You must provide an options.staleFactor value.");
+        }
+    
+        if(this.staleTime > this.expiryTime) {
+            throw new Error("The staleTime should be <= the expiryTime");
+        }
     }
 }
 
 DurationCachePolicy.prototype.calculate = function (key, durationMS, data, extra, state, callback) {
     var durationSeconds = durationMS / 1000;
 
-    var minStaleTime = this.minStaleTime;
+    var minStaleTime = this.minStaleTime || 0;
     var minExpiryTime = this.minExpiryTime;
     var staleFactor = this.staleFactor;
-    var maxStaleTime = this.maxStaleTime;
+    var maxStaleTime = this.maxStaleTime || 0;
     var expiryFactor = this.expiryFactor;
     var maxExpiryTime = this.maxExpiryTime;
+    var noStale = this.noStale;
 
     var stale, expiry;
 
     // When overriding, you may wish to alter some of the above factors and min/maximums based on the values of data and extra
 
-    stale = durationSeconds * staleFactor; // Baseline
+    stale = durationSeconds * staleFactor || 0; // Baseline
 
     if(stale < minStaleTime) {
         stale = minStaleTime;
     }
-
     if(stale > maxStaleTime) {
         stale = maxStaleTime;
     }
@@ -69,7 +76,10 @@ DurationCachePolicy.prototype.calculate = function (key, durationMS, data, extra
     var now = new Date() * 1;
     var expiryAbs = now + (expiry * 1000);
     var staleAbs = now + (stale * 1000);
-
+    
+    if(noStale){
+        staleAbs = 0
+    }
     return callback(null, {expiryTimeAbs: expiryAbs, staleTimeAbs: staleAbs});
 };
 
