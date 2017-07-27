@@ -6,7 +6,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+## [0.8.13] - 2017-07-17
+
 ### Changed
+Redis backend should only mark as stale if not expired
+
 ## [0.8.12] -  2017-07-27
 
 ### Added

@@ -80,16 +80,15 @@ Redis.prototype._decodeData = function (binary, data, options) {
 Redis.prototype._getState = function (data, options, callback) {
 
     var state = {ownLock: false, locked: false, stale: false, expired: false, hit: false};
-    var now = new Date();
+    var now = new Date() * 1;
 
     if(data.expiry && data.expiry < now) {
         state.expired = true;
-    }
-    state.expiryTime = data.expiry;
-
-    if(data.stale && data.stale < now) {
+    }else if(data.stale && data.stale < now) {
         state.stale = true;
     }
+        
+    state.expiryTime = data.expiry;
     state.staleTime = data.stale;
 
     if(data.lock) {
