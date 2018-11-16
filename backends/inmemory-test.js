@@ -76,12 +76,15 @@ InMemoryTest.prototype.get = function (key, options, callback) {
         var value = void 0;
         var extra = void 0;
 
+        if(data) {
+            extra = data.extra
+        }
+
         if(options.metaOnly == "hit") {
             value = void 0;
         } else {
             if(data) {
                 value = data.data;
-                extra = data.extra;
             }
         }
 

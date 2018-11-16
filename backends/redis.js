@@ -29,12 +29,20 @@ Redis.prototype._decodeData = function (binary, data, options) {
     result.lock = data[0] ? data[0].toString() : null; // Buffer to String
 
     switch(data.length) {
-        case 4:
+        case 5:
             result.expiry = data[1] ? data[1].toString() : null; // Buffer to String
             result.stale = data[2] ? data[2].toString() : null; // Buffer to String
             result.error = data[3] ? new Error(data[3].toString()) : void(0); // String or undefined
+            result.extra = data[4] ? data[4].toString() : void(0);
             result.data = void 0;
-            result.extra = void 0;
+
+            if(result.extra && result.extra[0] === "{") {
+                try {
+                    result.extra = JSON.parse(result.extra);
+                } catch(e) {
+                }
+            }
+
             break;
         case 2:
             var hash = data[1] || {};
@@ -122,6 +130,7 @@ Redis.prototype._getPipeline = function (key, metaOnly) {
         multi.hget(self.namespace + "data:" + key, "expiry");
         multi.hget(self.namespace + "data:" + key, "stale");
         multi.hget(self.namespace + "data:" + key, "error");
+        multi.hget(self.namespace + "data:" + key, "extra");
     }
 
     return multi;

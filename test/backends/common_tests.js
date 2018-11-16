@@ -162,16 +162,17 @@ module.exports = function (DEBUG) {
 
                 completionCount += 1;
 
+                should.exist(extra);
+                extra.should.be.type("object");
+                extra.should.have.property("test", "a");
+                extra.should.have.property("second", "b");
+
                 if(completionCount < 3) {
                     meta.hit.should.equal(false, "Completion " + completionCount + " should have been a miss, but registered as a hit.");
                     meta.should.have.property("pending", true);
                     meta.should.have.property("stale");
                     meta.should.have.property("staleTime");
                     should.exist(data);
-                    should.exist(extra);
-                    extra.should.be.type("object");
-                    extra.should.have.property("test", "a");
-                    extra.should.have.property("second", "b");
                     data.should.equal(returnValue);
                 }
 
