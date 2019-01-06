@@ -1,4 +1,7 @@
 var redis = require('redis')
+var util = require('util')
+var json_ser = require('../serializers/json')
+
 var client = redis.createClient('redis://:skypath@redis-10818.c9.us-east-1-2.ec2.cloud.redislabs.com:10818')
 
 var Sifaka = require("../index").Sifaka;
@@ -20,15 +23,17 @@ var workFunction = function(params, callback){
     setTimeout(function(){
         // Some time later, call the callback, with any errors and result data
         // An object of extra data can be stored alongside the main payload. Useful if e.g. the main payload needs serializing in a particular way (or is binary)
-        callback(null, {name: "bob", value: 12345}, {myExtraData: 42});
-    }, 10000);
+        callback(null, JSON.stringify({name: 'bob', value: 12345}), {myExtraData: 42});
+    }, 2000);
 };
 
 
 cache.get("myCacheKey", workFunction, { params : { sample : "test"}}, function(err, data, meta, extra){
     // The first response will take ~ 10s
+    console.log('data 1 : ', data, 'extra  1: ', extra)
     cache.get("myCacheKey", workFunction, {params : { sample : "test"}}, function(err, data, meta, extra){
         // This response should be instantaneous
+        console.log('data 2 : ', data, 'extra 2: ', extra)
     });
 });
 
