@@ -12,7 +12,7 @@ var policy = new Policy({expiryTime: 60, staleTime: 30}); // Do work every 30s, 
 var cache = new Sifaka(backend, {policy: policy});
 
 // Now define a costly function, which takes a callback(err,data).
-var workFunction = function(callback){
+var workFunction = function(params, callback){
     // Do some Stuff
     setTimeout(function(){
         // Some time later, call the callback, with any errors and result data
@@ -22,9 +22,9 @@ var workFunction = function(callback){
 };
 
 
-cache.get("myCacheKey", workFunction, {}, function(err, data, meta, extra){
+cache.get("myCacheKey", workFunction, { params : { sample : "test"}}, function(err, data, meta, extra){
     // The first response will take ~ 10s
-    cache.get("myCacheKey", workFunction, {}, function(err, data, meta, extra){
+    cache.get("myCacheKey", workFunction, {params : { sample : "test"}}, function(err, data, meta, extra){
         // This response should be instantaneous
     });
 });

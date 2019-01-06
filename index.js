@@ -79,7 +79,7 @@ Sifaka.prototype.exists = function (key, options, callback) {
 
 Sifaka.prototype.get = function (key, workFn, options, callback) {
     var self = this;
-
+    console.log('first got ' , options.params)
     if(arguments.length === 3 && typeof arguments[2] === "function") {
         callback = options;
         options = {};
@@ -128,7 +128,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                             if(acquired) {
                                 self._setLocalLock(key);
                                 self.debug(key, "GOT LOCK FOR STALE REFRESH");
-                                self._doWork(key, options, workFn, state);
+                                self._doWork(key, options, workFn, options.params, state);
                             } else {
                                 self.debug(key, "LOCK DENIED FOR STALE REFRESH"); // Another worker is doing the refresh
                             }
@@ -155,7 +155,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                     } else {
                         self.debug(key, "UNABLE TO READ CACHE - DOING WORK");
                         self._setLocalLock(key);
-                        self._doWork(key, options, workFn, state);
+                        self._doWork(key, options, workFn, options.params, state);
                     }
                 } else {
                     if(self._hasLocalLock(key)) {
@@ -174,7 +174,7 @@ Sifaka.prototype.get = function (key, workFn, options, callback) {
                                     // We got the lock ourselves, so we can do the work
                                     self._setLocalLock(key);
                                     self.debug(key, "GOT LOCK");
-                                    self._doWork(key, options, workFn, state);
+                                    self._doWork(key, options, workFn, options.params, state);
                                 } else {
                                     if(self._hasLocalLock(key)) { // Something local got the lock in the meantime, so no further action required
                                         return;
@@ -261,7 +261,7 @@ Sifaka.prototype._checkForBackendResult = function (key) {
                         self.debug(key, "GOT LOCK AFTER REMOTE LOCK");
                         
                         if(self.remoteLockChecks[key] && self.remoteLockChecks[key].workFn) {
-                            return self._doWork(key, self.remoteLockChecks[key].options, self.remoteLockChecks[key].workFn, self.remoteLockChecks[key].state, function () {
+                            return self._doWork(key, self.remoteLockChecks[key].options, self.remoteLockChecks[key].workFn, options.params, self.remoteLockChecks[key].state, function () {
                                 if(self._hasRemoteLockCheck(key)) {
                                     self._removeRemoteLockCheck(key, "check backend result (not locked - lock acquired)");
                                 }
@@ -330,11 +330,11 @@ Sifaka.prototype._deserialize = function (data, extra, callback) {
     }
 };
 
-Sifaka.prototype._doWork = function (key, options, workFunction, state, callback) {
+Sifaka.prototype._doWork = function (key, options, workFunction, params, state, callback) {
     var self = this;
     self.debug(key, "TRIGGERING WORK");
     var start = new Date();
-    workFunction(function (workError, data, extra, storedCallback) {
+    workFunction(params, function (workError, data, extra, storedCallback) {
         if(arguments.length == 3 && typeof extra === "function") {
             storedCallback = extra;
             extra = null;
