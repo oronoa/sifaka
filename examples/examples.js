@@ -1,8 +1,11 @@
+var redis = require('redis')
+var client = redis.createClient('redis://:skypath@redis-10818.c9.us-east-1-2.ec2.cloud.redislabs.com:10818')
+
 var Sifaka = require("../index").Sifaka;
 
 // Import a backend
-var Backend = require("../backends/inmemory-test"); // For demo purposes
-var backend = new Backend(); // No options
+var Backend = require("../backends/redis"); // For demo purposes
+var backend = new Backend({ client : client }); // No options
 
 
 // Tell the cache how we want to deal with expiry, and the serving of stale data

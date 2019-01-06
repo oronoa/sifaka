@@ -8,10 +8,9 @@
   },
   "author": "David Henderson",
   "license": "MIT",
-  "dependencies": {
-  },
+  "dependencies": {},
   "optionalDependencies": {
-    "redis": "^2.5.3"
+    "redis": "^2.8.0"
   },
   "devDependencies": {
     "should": "^8.1.1",
